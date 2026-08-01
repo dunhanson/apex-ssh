@@ -1,0 +1,17 @@
+# SSH Config 导入验收夹具：覆盖常规字段 / 通配块默认值 / ProxyJump 打标 / 多别名
+Host test-pass
+    HostName 127.0.0.1
+    User apex
+    Port 2222
+
+Host test-proxy
+    HostName 10.0.0.1
+    User root
+    ProxyJump bastion
+
+Host test-alias1 test-alias2
+    HostName 192.0.2.10
+
+Host *
+    ServerAliveInterval 60
+    User defaultuser

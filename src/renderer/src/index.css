@@ -1,0 +1,332 @@
+@import 'tailwindcss';
+
+/*
+ * 设计令牌：取自项目设计稿的 Design Notes。
+ * 纯黑主题一套，圆角统一 2px；JetBrains Mono 用于终端与 mono 标注，Inter 用于正文。
+ */
+@theme {
+  /* 背景层级 */
+  --color-ink: #000000; /* 终端 / 主区域底色 */
+  --color-panel: #050505; /* 侧栏 / 标签栏 */
+  --color-surface: #060606; /* 输入框 */
+  --color-raised: #0a0a0a; /* 弹窗 / toast */
+  --color-elevated: #0d0d0d; /* 搜索框 */
+
+  /* 描边 */
+  --color-line: rgba(255, 255, 255, 0.07);
+  --color-line-strong: rgba(255, 255, 255, 0.1);
+
+  /* 文字灰阶 */
+  --color-fg: #ffffff;
+  --color-body: #cccccc;
+  --color-dim: #888888;
+  --color-faint: #555555;
+  --color-ghost: #333333;
+
+  /* 状态色 */
+  --color-ok: #4ade80;
+  --color-warn: #f59e0b;
+  --color-danger: #ef4444;
+
+  --font-sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', Consolas, monospace;
+
+  /* 全局圆角约定：2px（状态点等圆形元素用 rounded-full 不受影响） */
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: var(--color-ink);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 滚动条（与原型一致） */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #1c1c1c;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* xterm 实例容器（原型 .terminal-instance） */
+.terminal-instance {
+  position: absolute;
+  inset: 14px 20px 14px;
+  overflow: hidden;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.terminal-instance.hidden {
+  display: none;
+}
+.xterm {
+  height: 100%;
+}
+.xterm-viewport {
+  scrollbar-width: none !important;
+}
+.xterm-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+/* 连接中状态点闪烁 */
+@keyframes dot-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+.dot-ing {
+  animation: dot-blink 1s infinite;
+}
+
+/* 通用小图标按钮（原型 .icon-btn） */
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  color: #444;
+  padding: 4px 6px;
+  border-radius: 2px;
+  transition:
+    color 0.1s,
+    background 0.1s;
+}
+.icon-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* 标签栏与启动器的紧凑工具按钮。 */
+.tab-tool {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #5a5a5a;
+  cursor: pointer;
+  outline: none;
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+.tab-tool:hover {
+  color: #f0f0f0;
+  background: rgba(255, 255, 255, 0.05);
+}
+.tab-tool:focus-visible {
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+.launcher-tool {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #484848;
+  cursor: pointer;
+  outline: none;
+  transition:
+    color 0.1s,
+    background 0.1s;
+}
+.launcher-tool:hover {
+  color: #d4d4d4;
+  background: rgba(255, 255, 255, 0.045);
+}
+.launcher-tool:focus-visible {
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+.launcher-host {
+  width: 100%;
+  min-height: 46px;
+  padding: 7px 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+  color: #777;
+  cursor: pointer;
+  outline: none;
+  transition:
+    color 0.1s,
+    padding 0.1s,
+    background 0.1s;
+}
+.launcher-host:hover {
+  padding-left: 9px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+/* 状态点（原型 .dot） */
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+  background: #333;
+}
+.dot.on {
+  background: #4ade80;
+  box-shadow: 0 0 5px rgba(74, 222, 128, 0.53);
+}
+.dot.ing {
+  background: #f59e0b;
+}
+.dot.err {
+  background: #ef4444;
+}
+
+/* frameless 窗口：可拖拽区域与交互元素的排除 */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* 设置工具标签：桌面使用左侧分类导航，窄窗口或窄分屏切换为顶部导航。 */
+.settings-pane {
+  container-type: inline-size;
+}
+.settings-workspace {
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr);
+  height: 100%;
+  min-width: 0;
+  background: var(--color-ink);
+}
+.settings-navigation-title {
+  padding: 0 10px 8px;
+  color: var(--color-ghost);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.settings-workspace-main {
+  min-width: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.settings-workspace-main::-webkit-scrollbar,
+.settings-navigation::-webkit-scrollbar {
+  display: none;
+}
+.settings-workspace-header {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--color-line);
+  box-sizing: border-box;
+}
+.settings-workspace-content {
+  width: min(680px, 100%);
+  padding: 28px 32px 48px;
+  box-sizing: border-box;
+}
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px 12px;
+  max-width: 560px;
+}
+.settings-form-wide {
+  grid-column: 1 / -1;
+}
+@container (max-width: 720px) {
+  .settings-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-navigation {
+    width: 100%;
+    flex-direction: row;
+    gap: 4px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .settings-navigation-title {
+    display: none;
+  }
+  .settings-workspace-header {
+    min-height: 64px;
+    padding: 0 20px;
+  }
+  .settings-workspace-content {
+    padding: 22px 20px 36px;
+  }
+  .settings-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-form-wide {
+    grid-column: auto;
+  }
+}
+
+/* 窗口控制三键（原型样式：40px 宽、#666 图标、hover 白底 8%，关闭键 hover #c42b1c） */
+.win-btn {
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  color: #666;
+  transition:
+    background 0.1s,
+    color 0.1s;
+}
+.win-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+.win-btn.win-close:hover {
+  background: #c42b1c;
+  color: #fff;
+}

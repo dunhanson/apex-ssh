@@ -1,0 +1,44 @@
+# Apex SSH 本地验证环境
+# 两个 openssh-server 实例：ssh-pass（密码认证，2222）与 ssh-key（密钥认证，2223）
+# 首次使用前运行 deploy/生成密钥.ps1 生成测试密钥
+
+services:
+  ssh-pass:
+    image: lscr.io/linuxserver/openssh-server:latest
+    container_name: apex-ssh-pass
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+      - USER_NAME=apex
+      - USER_PASSWORD=apex123
+      - PASSWORD_ACCESS=true
+      - SUDO_ACCESS=false
+    volumes:
+      - ssh-pass-data:/config
+    ports:
+      - "2222:2222"
+    restart: unless-stopped
+
+  ssh-key:
+    image: lscr.io/linuxserver/openssh-server:latest
+    container_name: apex-ssh-key
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+      - USER_NAME=apex
+      # 公钥由 deploy/生成密钥.ps1 生成，挂载进容器
+      - PUBLIC_KEY_FILE=/keys/id_ed25519.pub
+      - PASSWORD_ACCESS=false
+      - SUDO_ACCESS=false
+    volumes:
+      - ssh-key-data:/config
+      - ./keys:/keys:ro
+    ports:
+      - "2223:2222"
+    restart: unless-stopped
+
+volumes:
+  ssh-pass-data:
+  ssh-key-data:

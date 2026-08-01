@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Cache
+.cache/
+.temp/
+*.tmp
+
+# Playwright / browser artifacts
+.playwright-mcp/
+screenshots/
+
+# 验证环境测试私钥（公钥保留用于挂载进容器）
+deploy/keys/id_ed25519
+
+# Electron 构建产物
+out/
+dist-electron/
+release/
+
+# Claude Code 本地配置与缓存
+.claude/
+
+# Agent 本地技能与安装锁
+.agents/
+skills-lock.json

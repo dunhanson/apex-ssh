@@ -1,0 +1,15 @@
+# pnpm 构建脚本审批（pnpm v10+ 默认阻止依赖的 postinstall）
+allowBuilds:
+  # ssh2 的可选原生加速依赖，无 Python 环境时跳过（ssh2 纯 JS 回退正常工作）
+  cpu-features: false
+  # 允许执行 install-electron，启动前用它检查并补齐 Electron 二进制
+  electron: true
+  # electron-builder 的 Windows 安装包工具，M5 打包时再开启
+  electron-winstaller: false
+  esbuild: true
+  ssh2: false
+
+# electron-builder 26.15.3 代码依赖 ElectronDownloadCacheMode（@electron/get v4+），
+# 但其 package.json 声明 ^3.0.0（上游版本声明滞后），强制提升到 v5
+overrides:
+  app-builder-lib>@electron/get: ^5.0.0
