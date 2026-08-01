@@ -61,10 +61,16 @@ jobs:
 
       - name: 构建 Windows 安装包
         if: matrix.platform == 'windows'
-        run: pnpm run dist:win
+        shell: pwsh
+        run: |
+          if ($env:WINDOWS_CSC_LINK) {
+            $env:CSC_LINK = $env:WINDOWS_CSC_LINK
+            $env:CSC_KEY_PASSWORD = $env:WINDOWS_CSC_KEY_PASSWORD
+          }
+          pnpm run dist:win
         env:
-          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+          WINDOWS_CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          WINDOWS_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
 
       - name: 构建 Linux 安装包
         if: matrix.platform == 'linux'
@@ -72,13 +78,24 @@ jobs:
 
       - name: 构建 macOS 安装包
         if: matrix.platform == 'macos'
-        run: pnpm run dist:mac
+        shell: bash
+        run: |
+          if [[ -n "$MACOS_CSC_LINK" ]]; then
+            export CSC_LINK="$MACOS_CSC_LINK"
+            export CSC_KEY_PASSWORD="$MACOS_CSC_KEY_PASSWORD"
+            export APPLE_ID="$MACOS_APPLE_ID"
+            export APPLE_APP_SPECIFIC_PASSWORD="$MACOS_APPLE_APP_SPECIFIC_PASSWORD"
+            export APPLE_TEAM_ID="$MACOS_APPLE_TEAM_ID"
+          else
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          pnpm run dist:mac
         env:
-          CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          MACOS_CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
+          MACOS_APPLE_ID: ${{ secrets.APPLE_ID }}
+          MACOS_APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          MACOS_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: 收集 Windows 产物
         if: matrix.platform == 'windows'
