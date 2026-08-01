@@ -200,6 +200,6 @@ function createIco(pngs) {
 const sizes = [16, 24, 32, 48, 64, 128, 256]
 const pngBuffers = sizes.map((size) => ({ size, data: createIcon(size) }))
 
-fs.writeFileSync('resources/icon.png', pngBuffers.find((p) => p.size === 256).data)
+fs.writeFileSync('resources/icon.png', createIcon(1024))
 fs.writeFileSync('resources/icon.ico', createIco(pngBuffers))
-console.log('Generated resources/icon.png and resources/icon.ico')
+console.log('Generated 1024px resources/icon.png and multi-size resources/icon.ico')

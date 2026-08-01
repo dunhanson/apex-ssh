@@ -47,6 +47,7 @@ deploy/keys/id_ed25519
 out/
 dist-electron/
 release/
+resources/icon.icns
 
 # Claude Code 本地配置与缓存
 .claude/

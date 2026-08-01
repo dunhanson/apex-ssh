@@ -9,7 +9,22 @@ allowBuilds:
   esbuild: true
   ssh2: false
 
+minimumReleaseAgeExclude:
+  - ejs@3.1.10
+  - semver@5.7.2
+  - brace-expansion@1.1.17 || 2.1.3
+
+peerDependencyRules:
+  allowedVersions:
+    # electron-vite 5 尚未声明 Vite 8，当前组合已通过开发、生产和安装包构建
+    electron-vite>vite: '8'
+
 # electron-builder 26.15.3 代码依赖 ElectronDownloadCacheMode（@electron/get v4+），
 # 但其 package.json 声明 ^3.0.0（上游版本声明滞后），强制提升到 v5
 overrides:
   app-builder-lib>@electron/get: ^5.0.0
+  # electron-builder 传递依赖的安全修复（GHSA-c2qf-rxjj-qqgw、GHSA-mh99-v99m-4gvg）
+  brace-expansion@<1.1.17: ^1.1.17
+  brace-expansion@>=2.0.0 <2.1.3: ^2.1.3
+  ejs@<3.1.10: ^3.1.10
+  semver@>=2.0.0-alpha <5.7.2: ^5.7.2
