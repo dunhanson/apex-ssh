@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.17.0
           run_install: false
@@ -99,7 +99,7 @@ jobs:
 
       - name: Upload Windows artifacts
         if: matrix.platform == 'windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.id }}
           path: |
@@ -109,7 +109,7 @@ jobs:
 
       - name: Upload Linux artifacts
         if: matrix.platform == 'linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.id }}
           path: |
@@ -120,7 +120,7 @@ jobs:
 
       - name: Upload macOS artifacts
         if: matrix.platform == 'macos'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.id }}
           path: |
@@ -173,7 +173,7 @@ jobs:
                   -e "s/\*\*Full Changelog\*\*/\*\*完整变更记录\*\*/" >> release-notes.md
 
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*
           body_path: release-notes.md
