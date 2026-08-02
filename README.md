@@ -25,7 +25,7 @@
 前往 [GitHub Releases](https://github.com/dunhanson/apex-ssh/releases/latest) 下载最新版本：
 
 - Windows x64：NSIS 安装程序
-- Linux x64：AppImage 或 Debian 安装包
+- Linux x64：AppImage、Debian `.deb` 或 RPM `.rpm` 安装包
 - macOS x64 / Apple Silicon：DMG 或 ZIP
 
 当前公开安装包尚未配置商业代码签名，首次运行时操作系统可能显示安全提示。
