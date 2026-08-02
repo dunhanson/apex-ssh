@@ -22,10 +22,10 @@
     "prestart": "install-electron",
     "start": "electron-vite preview",
     "dist": "electron-vite build && electron-builder",
-    "dist:win": "electron-vite build && electron-builder --win nsis --x64 --publish never",
-    "dist:linux": "electron-vite build && electron-builder --linux AppImage deb rpm --x64 --publish never",
+    "dist:win": "electron-vite build && electron-builder --win nsis --x64 --arm64 --publish never",
+    "dist:linux": "electron-vite build && electron-builder --linux deb rpm --x64 --arm64 --publish never",
     "icon:mac": "bash scripts/生成macOS图标.sh",
-    "dist:mac": "pnpm run icon:mac && electron-vite build && electron-builder --mac dmg zip --x64 --arm64 --publish never"
+    "dist:mac": "pnpm run icon:mac && electron-vite build && electron-builder --mac --publish never"
   },
   "build": {
     "appId": "com.apex.ssh",
@@ -43,21 +43,18 @@
     "win": {
       "target": [{
         "target": "nsis",
-        "arch": ["x64"]
+        "arch": ["x64", "arm64"]
       }],
       "icon": "resources/icon.ico",
       "artifactName": "Apex-SSH-${version}-Windows-${arch}-Setup.${ext}"
     },
     "linux": {
       "target": [{
-        "target": "AppImage",
-        "arch": ["x64"]
-      }, {
         "target": "deb",
-        "arch": ["x64"]
+        "arch": ["x64", "arm64"]
       }, {
         "target": "rpm",
-        "arch": ["x64"]
+        "arch": ["x64", "arm64"]
       }],
       "category": "Network",
       "icon": "resources/icon.png",
@@ -66,9 +63,6 @@
     "mac": {
       "target": [{
         "target": "dmg",
-        "arch": ["x64", "arm64"]
-      }, {
-        "target": "zip",
         "arch": ["x64", "arm64"]
       }],
       "category": "public.app-category.developer-tools",
@@ -79,7 +73,12 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Apex SSH"
+      "shortcutName": "Apex SSH",
+      "differentialPackage": false,
+      "buildUniversalInstaller": false
+    },
+    "dmg": {
+      "writeUpdateInfo": false
     }
   },
   "dependencies": {
