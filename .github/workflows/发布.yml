@@ -143,10 +143,38 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Generate release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BASE="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          cat > release-notes.md <<EOF
+          Apex SSH ${GITHUB_REF_NAME} —— 简洁、现代的跨平台桌面 SSH 客户端：终端连接、多会话管理与 SFTP 文件传输。
+
+          ## 下载
+
+          | 平台 | 架构 | 安装包 |
+          | --- | --- | --- |
+          | 🪟 Windows | x64 | [Apex-SSH-${VERSION}-Windows-x64-Setup.exe](${BASE}/Apex-SSH-${VERSION}-Windows-x64-Setup.exe) |
+          | 🪟 Windows | arm64 | [Apex-SSH-${VERSION}-Windows-arm64-Setup.exe](${BASE}/Apex-SSH-${VERSION}-Windows-arm64-Setup.exe) |
+          | 🍎 macOS | Apple Silicon | [Apex-SSH-${VERSION}-macOS-arm64.dmg](${BASE}/Apex-SSH-${VERSION}-macOS-arm64.dmg) |
+          | 🍎 macOS | Intel | [Apex-SSH-${VERSION}-macOS-x64.dmg](${BASE}/Apex-SSH-${VERSION}-macOS-x64.dmg) |
+          | 🐧 Linux (Debian/Ubuntu) | x64 | [Apex-SSH-${VERSION}-Linux-DEB-x64.deb](${BASE}/Apex-SSH-${VERSION}-Linux-DEB-x64.deb) |
+          | 🐧 Linux (Debian/Ubuntu) | arm64 | [Apex-SSH-${VERSION}-Linux-DEB-arm64.deb](${BASE}/Apex-SSH-${VERSION}-Linux-DEB-arm64.deb) |
+          | 🐧 Linux (Fedora/RHEL) | x64 | [Apex-SSH-${VERSION}-Linux-RPM-x64.rpm](${BASE}/Apex-SSH-${VERSION}-Linux-RPM-x64.rpm) |
+          | 🐧 Linux (Fedora/RHEL) | arm64 | [Apex-SSH-${VERSION}-Linux-RPM-arm64.rpm](${BASE}/Apex-SSH-${VERSION}-Linux-RPM-arm64.rpm) |
+
+          > **提示**：当前公开安装包尚未配置商业代码签名，首次运行时操作系统可能显示安全提示（Windows 选择「仍要运行」，macOS 在「系统设置 → 隐私与安全性」中允许）。
+          EOF
+          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" -f tag_name="${GITHUB_REF_NAME}" --jq .body \
+            | sed "s/## What's Changed/## 本版本变更/" >> release-notes.md
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
-          generate_release_notes: true
+          body_path: release-notes.md
           fail_on_unmatched_files: true
           prerelease: ${{ contains(github.ref_name, '-') }}
