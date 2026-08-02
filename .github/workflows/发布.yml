@@ -99,7 +99,7 @@ jobs:
 
       - name: Upload Windows artifacts
         if: matrix.platform == 'windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.id }}
           path: |
@@ -109,7 +109,7 @@ jobs:
 
       - name: Upload Linux artifacts
         if: matrix.platform == 'linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.id }}
           path: |
@@ -120,7 +120,7 @@ jobs:
 
       - name: Upload macOS artifacts
         if: matrix.platform == 'macos'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.id }}
           path: |
