@@ -4,11 +4,16 @@
 
 **简洁、现代的跨平台桌面 SSH 客户端**
 
-终端连接 · 会话管理 · SFTP 传输
+终端连接 · 会话管理 · SFTP 传输 · 中英双语
 
 [![Release](https://img.shields.io/github/v/release/dunhanson/apex-ssh?style=for-the-badge&logo=github&label=Release)](https://github.com/dunhanson/apex-ssh/releases/latest)
 [![Build](https://img.shields.io/github/actions/workflow/status/dunhanson/apex-ssh/%E5%8F%91%E5%B8%83.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=Build)](https://github.com/dunhanson/apex-ssh/actions/workflows/%E5%8F%91%E5%B8%83.yml)
 [![License](https://img.shields.io/github/license/dunhanson/apex-ssh?style=for-the-badge&color=blue)](LICENSE)
+
+![Windows](https://img.shields.io/badge/Windows-0078d4?style=flat-square&logo=windows&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-fcc624?style=flat-square&logo=linux&logoColor=black)
+![macOS](https://img.shields.io/badge/macOS-000000?style=flat-square&logo=apple&logoColor=white)
+![简体中文 / English](https://img.shields.io/badge/%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87%20%2F%20English-跟随系统-5b5bd6?style=flat-square)
 
 <img src="docs/images/软件界面.png" alt="Apex SSH 连接管理界面" width="960">
 
@@ -45,12 +50,6 @@
     <td width="50%">
       <h3>📦 配置迁移</h3>
       支持导入和导出主机配置，备份时自动排除密码、私钥和私钥口令。
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center">
-      <h3>🌍 跨平台与双语</h3>
-      提供 Windows、Linux、macOS 安装包，界面支持简体中文、英文和跟随系统语言。
     </td>
   </tr>
 </table>
