@@ -83,10 +83,10 @@ The main process owns SSH, SFTP, credentials, and local data; the renderer acces
 
 Documentation is currently available in Simplified Chinese:
 
-- [开发指南 (Developer Guide)](docs/开发指南.md)
-- [构建与发布指南 (Build & Release Guide)](docs/发布指南.md)
-- [参与贡献 (Contributing)](CONTRIBUTING.md)
-- [安全策略 (Security Policy)](SECURITY.md)
+- [Developer Guide](docs/开发指南.md)
+- [Build & Release Guide](docs/发布指南.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
 
 ## 📄 License
 
