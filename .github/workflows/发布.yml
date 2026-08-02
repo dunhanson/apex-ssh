@@ -67,7 +67,7 @@ jobs:
             $env:CSC_LINK = $env:WINDOWS_CSC_LINK
             $env:CSC_KEY_PASSWORD = $env:WINDOWS_CSC_KEY_PASSWORD
           }
-          pnpm run dist:win
+          pnpm run dist:win:all
         env:
           WINDOWS_CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
           WINDOWS_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
