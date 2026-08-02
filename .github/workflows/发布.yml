@@ -153,7 +153,7 @@ jobs:
           cat > release-notes.md <<EOF
           Apex SSH ${GITHUB_REF_NAME} —— 简洁、现代的跨平台桌面 SSH 客户端：终端连接、多会话管理与 SFTP 文件传输。
 
-          ## 下载
+          ## 下载安装
 
           | 平台 | 架构 | 安装包 |
           | --- | --- | --- |
@@ -169,7 +169,8 @@ jobs:
           > **提示**：当前公开安装包尚未配置商业代码签名，首次运行时操作系统可能显示安全提示（Windows 选择「仍要运行」，macOS 在「系统设置 → 隐私与安全性」中允许）。
           EOF
           gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" -f tag_name="${GITHUB_REF_NAME}" --jq .body \
-            | sed "s/## What's Changed/## 本版本变更/" >> release-notes.md
+            | sed -e "s/## What's Changed/## 版本变更/" \
+                  -e "s/\*\*Full Changelog\*\*/\*\*完整变更记录\*\*/" >> release-notes.md
 
       - name: Create release
         uses: softprops/action-gh-release@v2
