@@ -3,9 +3,10 @@ import { resolve } from 'node:path'
 
 const outputDirectory = resolve(process.argv[2] ?? 'release')
 const architectureMappings = [
-  ['-Linux-amd64.deb', '-Linux-x64.deb'],
-  ['-Linux-x86_64.rpm', '-Linux-x64.rpm'],
-  ['-Linux-aarch64.rpm', '-Linux-arm64.rpm']
+  ['-Linux-amd64.deb', '-Linux-DEB-x64.deb'],
+  ['-Linux-arm64.deb', '-Linux-DEB-arm64.deb'],
+  ['-Linux-x86_64.rpm', '-Linux-RPM-x64.rpm'],
+  ['-Linux-aarch64.rpm', '-Linux-RPM-arm64.rpm']
 ]
 
 for (const fileName of await readdir(outputDirectory)) {
