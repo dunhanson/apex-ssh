@@ -6,6 +6,8 @@
 
 终端连接 · 会话管理 · SFTP 传输 · 中英双语
 
+**简体中文** | [English](README_EN.md)
+
 [![Release](https://img.shields.io/github/v/release/dunhanson/apex-ssh?style=for-the-badge&logo=github&label=Release)](https://github.com/dunhanson/apex-ssh/releases/latest)
 [![Build](https://img.shields.io/github/actions/workflow/status/dunhanson/apex-ssh/%E5%8F%91%E5%B8%83.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=Build)](https://github.com/dunhanson/apex-ssh/actions/workflows/%E5%8F%91%E5%B8%83.yml)
 [![License](https://img.shields.io/github/license/dunhanson/apex-ssh?style=for-the-badge&color=blue)](LICENSE)
