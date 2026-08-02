@@ -21,12 +21,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Windows x64
-            id: windows-x64
+          - name: Windows x64 and arm64
+            id: windows
             os: windows-latest
             platform: windows
-          - name: Linux x64
-            id: linux-x64
+          - name: Linux x64 and arm64
+            id: linux
             os: ubuntu-latest
             platform: linux
           - name: macOS x64 and arm64
@@ -113,7 +113,6 @@ jobs:
         with:
           name: ${{ matrix.id }}
           path: |
-            release/*.AppImage
             release/*.deb
             release/*.rpm
           if-no-files-found: error
@@ -126,7 +125,6 @@ jobs:
           name: ${{ matrix.id }}
           path: |
             release/*.dmg
-            release/*.zip
           if-no-files-found: error
           retention-days: 14
 
