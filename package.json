@@ -79,7 +79,11 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Apex SSH"
+      "shortcutName": "Apex SSH",
+      "differentialPackage": false
+    },
+    "dmg": {
+      "writeUpdateInfo": false
     }
   },
   "dependencies": {

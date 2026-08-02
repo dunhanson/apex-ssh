@@ -104,7 +104,6 @@ jobs:
           name: ${{ matrix.id }}
           path: |
             release/*.exe
-            release/*.blockmap
           if-no-files-found: error
           retention-days: 14
 
@@ -128,7 +127,6 @@ jobs:
           path: |
             release/*.dmg
             release/*.zip
-            release/*.blockmap
           if-no-files-found: error
           retention-days: 14
 
