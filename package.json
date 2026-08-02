@@ -23,7 +23,7 @@
     "start": "electron-vite preview",
     "dist": "electron-vite build && electron-builder",
     "dist:win": "electron-vite build && electron-builder --win nsis --x64 --arm64 --publish never",
-    "dist:linux": "electron-vite build && electron-builder --linux deb rpm --x64 --arm64 --publish never",
+    "dist:linux": "electron-vite build && electron-builder --linux deb rpm --x64 --arm64 --publish never && node scripts/统一Linux安装包名称.mjs",
     "icon:mac": "bash scripts/生成macOS图标.sh",
     "dist:mac": "pnpm run icon:mac && electron-vite build && electron-builder --mac --publish never"
   },
