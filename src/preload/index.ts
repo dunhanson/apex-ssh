@@ -13,7 +13,8 @@ import type {
   SftpListResult,
   SshConfigEntry,
   TermSize,
-  TransferProgress
+  TransferProgress,
+  UpdateStatus
 } from '@shared/types'
 import { IPC } from '@shared/types'
 
@@ -149,6 +150,17 @@ const api: RendererApi = {
       const listener = (_e: IpcRendererEvent, settings: AppSettings) => cb(settings)
       ipcRenderer.on(IPC.SettingsChanged, listener)
       return () => ipcRenderer.removeListener(IPC.SettingsChanged, listener)
+    }
+  },
+
+  updater: {
+    getStatus: () => ipcRenderer.invoke(IPC.UpdaterGetStatus),
+    check: () => ipcRenderer.invoke(IPC.UpdaterCheck),
+    restartAndInstall: () => ipcRenderer.invoke(IPC.UpdaterRestartAndInstall),
+    onStatusChanged: (cb) => {
+      const listener = (_e: IpcRendererEvent, status: UpdateStatus) => cb(status)
+      ipcRenderer.on(IPC.UpdaterStatusChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.UpdaterStatusChanged, listener)
     }
   },
 

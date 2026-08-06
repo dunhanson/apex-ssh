@@ -581,6 +581,10 @@ export default function App() {
             <div className={cn('absolute inset-0', !activeIsSettings && 'hidden')}>
               <SettingsWorkspace
                 onHostsImported={async () => setHosts(await window.api.hosts.list())}
+                activeSessions={
+                  sessions.filter((s) => s.status === 'connecting' || s.status === 'connected')
+                    .length
+                }
               />
             </div>
           )}

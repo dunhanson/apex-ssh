@@ -7,22 +7,34 @@ import {
   FolderDown,
   Info,
   MonitorCog,
+  RefreshCw,
+  Rocket,
   SquareTerminal,
   Upload,
   type LucideIcon
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { AppSettings } from '@shared/types'
+import type { AppSettings, UpdateStatus } from '@shared/types'
 import logoUrl from '@/assets/logo.svg'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { useSettings, setSettings } from '@/lib/settings'
 import { cn } from '@/lib/utils'
 
 interface SettingsWorkspaceProps {
   onHostsImported: () => Promise<void>
+  /** 活动（连接中 / 已连接）SSH 会话数，用于「立即重启更新」前的断开提示 */
+  activeSessions: number
 }
 
 function SettingToggle({
@@ -174,11 +186,26 @@ interface SettingsCategoryItem {
   icon: LucideIcon
 }
 
-export function SettingsWorkspace({ onHostsImported }: SettingsWorkspaceProps) {
+export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsWorkspaceProps) {
   const { t } = useTranslation()
   const settings = useSettings()
   const [category, setCategory] = useState<SettingsCategory>('terminal')
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null)
+  const [restartAsk, setRestartAsk] = useState(false)
   const patch = (value: Partial<AppSettings>) => setSettings(value)
+
+  // 版本与更新状态：初始拉取一次，后续跟随主进程状态广播
+  useEffect(() => {
+    let mounted = true
+    window.api.updater.getStatus().then((status) => {
+      if (mounted) setUpdateStatus(status)
+    })
+    const off = window.api.updater.onStatusChanged(setUpdateStatus)
+    return () => {
+      mounted = false
+      off()
+    }
+  }, [])
   const categories: SettingsCategoryItem[] = [
     {
       id: 'terminal',
@@ -212,6 +239,40 @@ export function SettingsWorkspace({ onHostsImported }: SettingsWorkspaceProps) {
     }
   ]
   const activeCategory = categories.find((item) => item.id === category) ?? categories[0]
+
+  const updateStatusText = (): string => {
+    if (!updateStatus) return t('settings.updateLoading')
+    switch (updateStatus.state) {
+      case 'idle':
+        return t('settings.updateIdle')
+      case 'checking':
+        return t('settings.updateChecking')
+      case 'up-to-date':
+        return t('settings.updateUpToDate')
+      case 'available':
+        return t('settings.updateAvailable', { version: updateStatus.version ?? '' })
+      case 'downloading':
+        return t('settings.updateDownloading', { percent: updateStatus.progress ?? 0 })
+      case 'downloaded':
+        return t('settings.updateDownloaded', { version: updateStatus.version ?? '' })
+      case 'installing':
+        return t('settings.updateInstalling')
+      case 'error':
+        // 只展示归类后的友好文案；原始错误（HTTP 头、堆栈）留在主进程日志
+        switch (updateStatus.errorCode) {
+          case 'network':
+            return t('settings.updateErrorNetwork')
+          case 'no-release':
+            return t('settings.updateErrorNoRelease')
+          case 'verify':
+            return t('settings.updateErrorVerify')
+          default:
+            return t('settings.updateErrorUnknown')
+        }
+      case 'unsupported':
+        return t('settings.updateUnsupported')
+    }
+  }
 
   return (
     <Tabs
@@ -425,10 +486,85 @@ export function SettingsWorkspace({ onHostsImported }: SettingsWorkspaceProps) {
                   </div>
                 </div>
                 <div className="font-mono text-[10px] text-faint shrink-0">
-                  {t('settings.version')} 0.1.0
+                  {t('settings.version')} {updateStatus?.currentVersion ?? '…'}
                 </div>
               </div>
+
+              <div className="flex max-w-[520px] flex-col gap-2.5 rounded-sm border border-line bg-surface px-3 py-3">
+                <div className="font-mono text-[10px] leading-4 tracking-[0.08em] text-ghost uppercase">
+                  {t('settings.update')}
+                </div>
+                <div className="font-mono text-[11px] leading-4 text-dim break-all">
+                  {updateStatusText()}
+                </div>
+                {updateStatus?.state === 'downloading' && (
+                  <div className="h-1 w-full overflow-hidden rounded-full bg-elevated">
+                    <div
+                      className="h-full bg-white/25 transition-[width]"
+                      style={{ width: `${updateStatus.progress ?? 0}%` }}
+                    />
+                  </div>
+                )}
+                {updateStatus?.supported && updateStatus.state !== 'installing' && (
+                  <div className="flex gap-2">
+                    {updateStatus.state !== 'checking' && updateStatus.state !== 'downloading' && (
+                      <Button
+                        className="h-9"
+                        onClick={() => void window.api.updater.check()}
+                      >
+                        <RefreshCw data-icon="inline-start" />
+                        {updateStatus.state === 'error'
+                          ? t('settings.updateRetry')
+                          : t('settings.checkUpdate')}
+                      </Button>
+                    )}
+                    {updateStatus.state === 'downloaded' && (
+                      <Button
+                        className="h-9"
+                        variant="solid"
+                        onClick={() => {
+                          // 存在活动 SSH 会话时必须先确认会断开，再允许立即安装
+                          if (activeSessions > 0) setRestartAsk(true)
+                          else void window.api.updater.restartAndInstall()
+                        }}
+                      >
+                        <Rocket data-icon="inline-start" />
+                        {t('settings.restartNow')}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
             </SettingsSection>
+
+            {/* 立即重启更新确认：活动 SSH 会话将断开 */}
+            <Dialog open={restartAsk} onOpenChange={setRestartAsk}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t('settings.restartConfirmTitle')}</DialogTitle>
+                </DialogHeader>
+                <DialogBody>
+                  <p className="font-mono text-[11px] text-dim leading-relaxed">
+                    {t('settings.restartConfirmDesc', { count: activeSessions })}
+                  </p>
+                </DialogBody>
+                <DialogFooter className="justify-end">
+                  <Button size="sm" onClick={() => setRestartAsk(false)}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="solid"
+                    onClick={() => {
+                      setRestartAsk(false)
+                      void window.api.updater.restartAndInstall()
+                    }}
+                  >
+                    {t('settings.restartConfirm')}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
         </div>
       </div>

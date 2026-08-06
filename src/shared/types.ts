@@ -167,6 +167,46 @@ export interface AppSettings {
   downloadDir: string
 }
 
+/**
+ * 应用更新状态机：
+ * idle → checking → downloading → downloaded → installing（用户确认立即安装）
+ *              ↘ up-to-date          ↘ error（检查或下载失败，可重试）
+ *              ↘ available（仅 checkOnly 开发环境：发现新版本但不下载）
+ * unsupported：非 Windows 环境，更新能力整体不可用
+ */
+export type UpdateState =
+  | 'idle'
+  | 'checking'
+  | 'up-to-date'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'installing'
+  | 'error'
+  | 'unsupported'
+
+/** 更新失败分类：用于渲染端展示友好文案，原始错误不进 UI */
+export type UpdateErrorCode = 'network' | 'no-release' | 'verify' | 'unknown'
+
+/** 主 → 渲染：更新状态快照（状态广播与 getStatus 共用同一形状） */
+export interface UpdateStatus {
+  state: UpdateState
+  /** 当前环境是否支持检查更新（Windows 安装版完整支持，Windows 开发环境仅检查） */
+  supported: boolean
+  /** 仅检查不下载：开发环境（未打包 Windows）为 true，不自动检查、不下载、不安装 */
+  checkOnly: boolean
+  /** 当前版本（app.getVersion()） */
+  currentVersion: string
+  /** 检测到 / 已下载的新版本号 */
+  version?: string
+  /** 下载进度百分比 0-100（downloading 时有效） */
+  progress?: number
+  /** 失败分类（error 时有效），渲染端据此选择友好文案 */
+  errorCode?: UpdateErrorCode
+  /** 原始错误信息，仅供诊断日志，不直接展示 */
+  message?: string
+}
+
 /** IPC 通道名常量，避免三端各自硬编码 */
 export const IPC = {
   Ping: 'app:ping',
@@ -232,7 +272,12 @@ export const IPC = {
   SettingsGet: 'settings:get',
   SettingsSet: 'settings:set',
   /** 主 → 渲染：设置变更事件，payload 为 AppSettings */
-  SettingsChanged: 'settings:changed'
+  SettingsChanged: 'settings:changed',
+  UpdaterGetStatus: 'updater:get-status',
+  UpdaterCheck: 'updater:check',
+  UpdaterRestartAndInstall: 'updater:restart-and-install',
+  /** 主 → 渲染：更新状态变更事件，payload 为 UpdateStatus */
+  UpdaterStatusChanged: 'updater:status-changed'
 } as const
 
 /** 预加载桥暴露给渲染进程的 window.api 形状 */
@@ -356,6 +401,16 @@ export interface RendererApi {
     /** 部分更新并广播 SettingsChanged */
     set: (patch: Partial<AppSettings>) => Promise<AppSettings>
     onChanged: (cb: (settings: AppSettings) => void) => () => void
+  }
+  updater: {
+    /** 当前更新状态快照；不支持的环境返回 state = unsupported */
+    getStatus: () => Promise<UpdateStatus>
+    /** 手动检查更新；检查/下载进行中时直接返回当前状态 */
+    check: () => Promise<UpdateStatus>
+    /** 已下载后立即静默安装并重启；仅 downloaded 状态有效，其他状态为空操作 */
+    restartAndInstall: () => Promise<void>
+    /** 订阅更新状态变更，返回取消订阅函数 */
+    onStatusChanged: (cb: (status: UpdateStatus) => void) => () => void
   }
   clipboard: {
     /** 通过 Electron 主进程写入系统剪贴板，避免 Chromium 权限差异 */

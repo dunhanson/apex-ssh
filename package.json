@@ -19,6 +19,7 @@
     "predev": "install-electron",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "test": "vitest run",
     "prestart": "install-electron",
     "start": "electron-vite preview",
     "dist": "pnpm run dist:win",
@@ -36,36 +37,62 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "dunhanson",
+        "repo": "apex-ssh"
+      }
+    ],
     "files": [
       "out/**",
       "resources/**",
       "LICENSE"
     ],
     "win": {
-      "target": [{
-        "target": "nsis",
-        "arch": ["x64", "arm64"]
-      }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
       "icon": "resources/icon.ico",
       "artifactName": "Apex-SSH-${version}-Windows-${arch}-Setup.${ext}"
     },
     "linux": {
-      "target": [{
-        "target": "deb",
-        "arch": ["x64", "arm64"]
-      }, {
-        "target": "rpm",
-        "arch": ["x64", "arm64"]
-      }],
+      "target": [
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
       "category": "Network",
       "icon": "resources/icon.png",
       "artifactName": "Apex-SSH-${version}-Linux-${arch}.${ext}"
     },
     "mac": {
-      "target": [{
-        "target": "dmg",
-        "arch": ["x64", "arm64"]
-      }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
       "category": "public.app-category.developer-tools",
       "icon": "resources/icon.icns",
       "hardenedRuntime": true,
@@ -73,9 +100,9 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "shortcutName": "Apex SSH",
-      "differentialPackage": false,
       "buildUniversalInstaller": false
     },
     "dmg": {
@@ -94,6 +121,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "electron-store": "^11.0.2",
+    "electron-updater": "^6.8.9",
     "i18next": "^26.3.6",
     "lucide-react": "^1.27.0",
     "react": "^19.2.8",
@@ -115,6 +143,7 @@
     "electron-vite": "^5.0.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^8.1.5"
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   }
 }

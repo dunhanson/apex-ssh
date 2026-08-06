@@ -19,6 +19,7 @@ import * as creds from './credentials'
 import * as settings from './settings'
 import * as sftp from './sftp'
 import * as ssh from './ssh'
+import { initUpdater, registerUpdaterIpc } from './updater'
 
 // Windows 下被完全遮挡的窗口会被 Chromium 判定为 hidden 并停止 BeginFrame，
 // xterm 的渲染循环（rAF 驱动）随之停摆；终端应用需要遮挡时也能持续渲染
@@ -303,6 +304,8 @@ function registerIpc(): void {
     settings.setSettings(patch)
   )
 
+  registerUpdaterIpc()
+
   ipcMain.handle(IPC.LocalHome, () => homedir())
   ipcMain.handle(IPC.LocalList, async (_e, path: string): Promise<SftpListResult> => {
     try {
@@ -362,6 +365,8 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   registerIpc()
   createWindow()
+  // 后台初始化更新服务：仅打包后的 Windows 生效，内部延迟触发首次检查
+  initUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
