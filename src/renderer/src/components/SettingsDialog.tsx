@@ -196,7 +196,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const [category, setCategory] = useState<SettingsCategory>('terminal')
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null)
   const [restartAsk, setRestartAsk] = useState(false)
-  const [includeCredentials, setIncludeCredentials] = useState(false)
+  const [includeCredentials, setIncludeCredentials] = useState(true)
   const [backupStats, setBackupStats] = useState<EncryptedBackupStats | null>(null)
   const [backupPasswordMode, setBackupPasswordMode] = useState<'export' | 'import' | null>(null)
   const [backupPasswordSource, setBackupPasswordSource] = useState<'custom' | 'random'>('custom')
