@@ -5,7 +5,7 @@ import {
   scrypt as scryptCallback
 } from 'node:crypto'
 import { execFile as execFileCallback } from 'node:child_process'
-import { chmodSync } from 'node:fs'
+import { chmodSync, promises as fsp } from 'node:fs'
 import { promisify } from 'node:util'
 import type { EncryptedBackupStats, HostConfig } from '@shared/types'
 
@@ -348,16 +348,54 @@ export function parseCompleteBackupPayload(value: unknown): CompleteBackupPayloa
   }
 }
 
-/** 限制完整备份文件仅当前用户可读；Windows 使用 SID 移除继承 ACL。 */
-export async function restrictBackupFilePermissions(path: string): Promise<void> {
-  chmodSync(path, 0o600)
-  if (process.platform !== 'win32') return
+async function getWindowsUserSid(): Promise<string> {
   const { stdout } = await execFile('whoami', ['/user', '/fo', 'csv', '/nh'], {
     windowsHide: true
   })
   const sid = stdout.trim().match(/,"(S-\d+(?:-\d+)*)"$/i)?.[1]
   if (!sid) throw new Error('无法获取当前 Windows 用户 SID')
-  await execFile('icacls', [path, '/inheritance:r', '/grant:r', `*${sid}:(R)`], {
+  return sid
+}
+
+async function grantWindowsBackupFileControl(path: string, removeInheritance: boolean): Promise<void> {
+  const sid = await getWindowsUserSid()
+  const args = [path]
+  if (removeInheritance) args.push('/inheritance:r')
+  args.push('/grant:r', `*${sid}:(F)`)
+  await execFile('icacls', args, {
     windowsHide: true
   })
+}
+
+/** 限制完整备份文件仅当前用户可读写；Windows 使用 SID 移除继承 ACL。 */
+export async function restrictBackupFilePermissions(path: string): Promise<void> {
+  chmodSync(path, 0o600)
+  if (process.platform !== 'win32') return
+  await grantWindowsBackupFileControl(path, true)
+}
+
+async function prepareBackupFileForOverwrite(path: string): Promise<void> {
+  try {
+    await fsp.access(path)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw error
+  }
+
+  if (process.platform === 'win32') {
+    await grantWindowsBackupFileControl(path, false)
+  } else {
+    chmodSync(path, 0o600)
+  }
+}
+
+export async function writeEncryptedBackupFile(path: string, encrypted: string): Promise<void> {
+  await prepareBackupFileForOverwrite(path)
+  await fsp.writeFile(path, encrypted, { encoding: 'utf8', mode: 0o600 })
+  try {
+    await restrictBackupFilePermissions(path)
+  } catch (error) {
+    await fsp.rm(path, { force: true })
+    throw error
+  }
 }

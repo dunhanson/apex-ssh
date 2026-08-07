@@ -25,7 +25,7 @@ import {
   encryptCompleteBackup,
   MAX_ENCRYPTED_BACKUP_BYTES,
   parseEncryptedContainer,
-  restrictBackupFilePermissions,
+  writeEncryptedBackupFile,
   type CompleteBackupPayload
 } from './encrypted-backup'
 import {
@@ -157,13 +157,7 @@ function registerIpc(): void {
       if (result.canceled || !result.filePath) {
         return { status: 'cancelled', count: 0, encrypted: true }
       }
-      await fsp.writeFile(result.filePath, encrypted, { encoding: 'utf8', mode: 0o600 })
-      try {
-        await restrictBackupFilePermissions(result.filePath)
-      } catch (error) {
-        await fsp.rm(result.filePath, { force: true })
-        throw error
-      }
+      await writeEncryptedBackupFile(result.filePath, encrypted)
       return {
         status: 'success',
         count: payload.hosts.length,

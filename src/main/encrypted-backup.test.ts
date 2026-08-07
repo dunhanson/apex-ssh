@@ -1,13 +1,31 @@
 import { describe, expect, it } from 'vitest'
+import { execFile as execFileCallback } from 'node:child_process'
+import { chmod, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { promisify } from 'node:util'
 import {
   decryptCompleteBackup,
   encryptCompleteBackup,
   parseCompleteBackupPayload,
   parseEncryptedContainer,
+  writeEncryptedBackupFile,
   type CompleteBackupPayload
 } from './encrypted-backup'
 
 const password = 'correct horse battery staple'
+const execFile = promisify(execFileCallback)
+
+async function setWindowsFilePermission(path: string, permission: 'R' | 'F'): Promise<void> {
+  const { stdout } = await execFile('whoami', ['/user', '/fo', 'csv', '/nh'], {
+    windowsHide: true
+  })
+  const sid = stdout.trim().match(/,"(S-\d+(?:-\d+)*)"$/i)?.[1]
+  if (!sid) throw new Error('无法获取测试用户 SID')
+  await execFile('icacls', [path, '/grant:r', `*${sid}:(${permission})`], {
+    windowsHide: true
+  })
+}
 
 function payload(): CompleteBackupPayload {
   return {
@@ -97,5 +115,23 @@ describe('加密完整备份容器', () => {
     injected.hosts[0].auth.password = 'must-not-survive'
     const parsed = parseCompleteBackupPayload(injected)
     expect(parsed.hosts[0].auth).toEqual({ type: 'password', passwordId: 'password-1' })
+  })
+
+  it('允许覆盖旧版本限制为只读权限的加密备份', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'apex-backup-'))
+    const path = join(directory, 'backup.apex-backup')
+
+    try {
+      await writeEncryptedBackupFile(path, 'first')
+      if (process.platform === 'win32') await setWindowsFilePermission(path, 'R')
+      else await chmod(path, 0o400)
+
+      await expect(writeEncryptedBackupFile(path, 'second')).resolves.toBeUndefined()
+      await expect(readFile(path, 'utf8')).resolves.toBe('second')
+    } finally {
+      if (process.platform === 'win32') await setWindowsFilePermission(path, 'F')
+      else await chmod(path, 0o600)
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 })
