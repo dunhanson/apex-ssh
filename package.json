@@ -30,7 +30,7 @@
     "dist:mac": "pnpm run icon:mac && electron-vite build && electron-builder --mac --publish never"
   },
   "build": {
-    "appId": "com.apex.ssh",
+    "appId": "site.dunhanson.apex",
     "productName": "Apex SSH",
     "icon": "resources/icon.png",
     "npmRebuild": false,
