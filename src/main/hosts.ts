@@ -233,3 +233,8 @@ export function importHosts(
   store.set('hosts', merged)
   return { added, updated }
 }
+
+/** 仅用于完整备份事务失败后的主机快照恢复。 */
+export function restoreHostsSnapshot(hosts: HostConfig[]): void {
+  store.set('hosts', hosts)
+}

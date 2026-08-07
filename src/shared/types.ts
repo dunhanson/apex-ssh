@@ -25,8 +25,12 @@ export type HostInput = Omit<HostConfig, 'id'>
 
 /** 主机配置备份导入结果；凭证本体不属于备份范围 */
 export interface HostBackupResult {
-  status: 'success' | 'cancelled'
+  status: 'success' | 'cancelled' | 'password-required' | 'preview'
   count: number
+  /** 是否为包含登录凭证的加密完整备份 */
+  encrypted?: boolean
+  /** 加密完整备份内容统计 */
+  stats?: EncryptedBackupStats
   /** 导入时新增的主机数 */
   added?: number
   /** 导入时覆盖的同 id 主机数 */
@@ -35,6 +39,19 @@ export interface HostBackupResult {
   unresolvedCredentials?: number
   /** 导出时剔除的直填密码、私钥口令数量 */
   omittedSecrets?: number
+}
+
+export interface EncryptedBackupStats {
+  hosts: number
+  passwords: number
+  keys: number
+  passphrases: number
+}
+
+export interface BackupExportOptions {
+  includeCredentials?: boolean
+  /** 仅在 includeCredentials 为 true 时使用，不会持久化 */
+  password?: string
 }
 
 /** 会话状态机 */
@@ -142,6 +159,8 @@ export interface KeyEntry {
   fingerprint: string
   /** 公钥内容（OpenSSH 单行） */
   publicKey: string
+  /** 只暴露是否存在口令，不向渲染进程返回口令内容 */
+  hasPassphrase?: boolean
   createdAt: number
 }
 
@@ -216,6 +235,10 @@ export const IPC = {
   HostsUpdate: 'hosts:update',
   HostsExport: 'hosts:export',
   HostsImport: 'hosts:import',
+  HostsImportUnlock: 'hosts:import-unlock',
+  HostsImportCommit: 'hosts:import-commit',
+  HostsImportCancel: 'hosts:import-cancel',
+  HostsBackupStats: 'hosts:backup-stats',
   ClipboardWriteText: 'clipboard:write-text',
   ClipboardReadText: 'clipboard:read-text',
   DialogPickFile: 'dialog:pick-file',
@@ -289,9 +312,17 @@ export interface RendererApi {
     delete: (id: string) => Promise<void>
     update: (id: string, input: HostInput) => Promise<HostConfig>
     /** 导出主机配置；不包含直填密码、私钥内容或私钥口令 */
-    exportBackup: () => Promise<HostBackupResult>
+    exportBackup: (options?: BackupExportOptions) => Promise<HostBackupResult>
     /** 从备份文件导入；在主进程确认合并或替换后执行 */
-    importBackup: () => Promise<HostBackupResult>
+    importBackup: (options?: Pick<BackupExportOptions, 'includeCredentials'>) => Promise<HostBackupResult>
+    /** 使用备份密码解锁已选择的加密备份，并返回不含明文凭证的预览 */
+    unlockEncryptedBackup: (password: string) => Promise<HostBackupResult>
+    /** 按预览确认后的模式提交加密备份导入 */
+    commitEncryptedBackup: (mode: 'merge' | 'replace') => Promise<HostBackupResult>
+    /** 取消当前待处理的加密备份并清理主进程中的明文载荷 */
+    cancelEncryptedBackup: () => Promise<void>
+    /** 只统计完整备份条目数量，不读取或返回凭证明文 */
+    getBackupStats: () => Promise<EncryptedBackupStats>
   }
   dialog: {
     /** 打开文件选择框（选私钥等），取消时返回 null */

@@ -14,7 +14,7 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { AppSettings, UpdateStatus } from '@shared/types'
+import type { AppSettings, EncryptedBackupStats, UpdateStatus } from '@shared/types'
 import logoUrl from '@/assets/logo.svg'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -192,6 +192,13 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const [category, setCategory] = useState<SettingsCategory>('terminal')
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null)
   const [restartAsk, setRestartAsk] = useState(false)
+  const [includeCredentials, setIncludeCredentials] = useState(false)
+  const [backupStats, setBackupStats] = useState<EncryptedBackupStats | null>(null)
+  const [backupPasswordMode, setBackupPasswordMode] = useState<'export' | 'import' | null>(null)
+  const [backupPassword, setBackupPassword] = useState('')
+  const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('')
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [importPreview, setImportPreview] = useState<EncryptedBackupStats | null>(null)
   const patch = (value: Partial<AppSettings>) => setSettings(value)
 
   // 版本与更新状态：初始拉取一次，后续跟随主进程状态广播
@@ -239,6 +246,103 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
     }
   ]
   const activeCategory = categories.find((item) => item.id === category) ?? categories[0]
+
+  const closePasswordDialog = async () => {
+    if (backupPasswordMode === 'import') await window.api.hosts.cancelEncryptedBackup()
+    setBackupPasswordMode(null)
+    setBackupPassword('')
+    setBackupPasswordConfirm('')
+  }
+
+  const exportBackup = async () => {
+    if (includeCredentials) {
+      setBackupPasswordMode('export')
+      return
+    }
+    try {
+      const result = await window.api.hosts.exportBackup()
+      if (result.status === 'success') {
+        toast.success(
+          t('settings.exportSuccess', {
+            count: result.count,
+            omitted: result.omittedSecrets ?? 0
+          })
+        )
+      }
+    } catch (error) {
+      toast.error(t('settings.backupFailed', { message: String(error) }))
+    }
+  }
+
+  const importBackup = async () => {
+    try {
+      const result = await window.api.hosts.importBackup({ includeCredentials })
+      if (result.status === 'password-required') {
+        setBackupPasswordMode('import')
+      } else if (result.status === 'success') {
+        await onHostsImported()
+        toast.success(
+          t('settings.importSuccess', {
+            count: result.count,
+            unresolved: result.unresolvedCredentials ?? 0
+          })
+        )
+      }
+    } catch (error) {
+      toast.error(t('settings.backupFailed', { message: String(error) }))
+    }
+  }
+
+  const submitBackupPassword = async () => {
+    if (backupPassword.length < 12) {
+      toast.error(t('settings.backupPasswordTooShort'))
+      return
+    }
+    if (backupPasswordMode === 'export' && backupPassword !== backupPasswordConfirm) {
+      toast.error(t('settings.backupPasswordMismatch'))
+      return
+    }
+    setBackupBusy(true)
+    try {
+      if (backupPasswordMode === 'export') {
+        const result = await window.api.hosts.exportBackup({
+          includeCredentials: true,
+          password: backupPassword
+        })
+        if (result.status === 'success' && result.stats) {
+          toast.success(t('settings.encryptedExportSuccess', result.stats))
+        }
+        await closePasswordDialog()
+      } else if (backupPasswordMode === 'import') {
+        const result = await window.api.hosts.unlockEncryptedBackup(backupPassword)
+        if (result.status === 'preview' && result.stats) {
+          setImportPreview(result.stats)
+          setBackupPasswordMode(null)
+          setBackupPassword('')
+        }
+      }
+    } catch (error) {
+      toast.error(t('settings.backupFailed', { message: String(error) }))
+    } finally {
+      setBackupBusy(false)
+    }
+  }
+
+  const commitEncryptedImport = async (mode: 'merge' | 'replace') => {
+    setBackupBusy(true)
+    try {
+      const result = await window.api.hosts.commitEncryptedBackup(mode)
+      if (result.status === 'success') {
+        await onHostsImported()
+        toast.success(t('settings.encryptedImportSuccess', result.stats ?? {}))
+        setImportPreview(null)
+      }
+    } catch (error) {
+      toast.error(t('settings.backupFailed', { message: String(error) }))
+    } finally {
+      setBackupBusy(false)
+    }
+  }
 
   const updateStatusText = (): string => {
     if (!updateStatus) return t('settings.updateLoading')
@@ -423,56 +527,170 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
             <SettingsSection title={t('settings.hostBackup')}>
               <div className="max-w-[560px]">
                 <Label>{t('settings.hostBackupLabel')}</Label>
-                <div className="max-w-[420px] mb-2.5 font-mono text-[10px] leading-4 text-ghost">
-                  {t('settings.hostBackupHint')}
+                <div className="mb-2.5 max-w-[420px] font-mono text-[10px] leading-4 text-ghost">
+                  {t('settings.hostBackupBaseHint')}
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    className="flex-1"
-                    onClick={async () => {
-                      try {
-                        const result = await window.api.hosts.exportBackup()
-                        if (result.status === 'success') {
-                          toast.success(
-                            t('settings.exportSuccess', {
-                              count: result.count,
-                              omitted: result.omittedSecrets ?? 0
-                            })
-                          )
-                        }
-                      } catch (error) {
-                        toast.error(t('settings.backupFailed', { message: String(error) }))
+                <div className="mb-2.5 flex min-h-9 max-w-[420px] items-center justify-between gap-4 rounded-sm border border-line bg-surface px-2.5">
+                  <div className="min-w-0">
+                    <div className="font-mono text-[11px] leading-4 text-body">
+                      {t('settings.includeCredentials')}
+                    </div>
+                    <div className="font-mono text-[10px] leading-4 text-ghost">
+                      {includeCredentials
+                        ? t('settings.encryptedBackupHint')
+                        : t('settings.hostBackupHint')}
+                    </div>
+                  </div>
+                  <SettingToggle
+                    checked={includeCredentials}
+                    label={t('settings.includeCredentials')}
+                    onChange={(checked) => {
+                      setIncludeCredentials(checked)
+                      if (!checked) {
+                        setBackupStats(null)
+                        return
                       }
+                      void window.api.hosts
+                        .getBackupStats()
+                        .then(setBackupStats)
+                        .catch((error) =>
+                          toast.error(t('settings.backupFailed', { message: String(error) }))
+                        )
                     }}
-                  >
+                  />
+                </div>
+                {includeCredentials && backupStats && (
+                  <div className="mb-2.5 flex flex-wrap gap-x-3.5 gap-y-1 font-mono text-[10px] leading-4 text-ghost">
+                    <span>{t('settings.backupHosts', { count: backupStats.hosts })}</span>
+                    <span>{t('settings.backupPasswords', { count: backupStats.passwords })}</span>
+                    <span>{t('settings.backupKeys', { count: backupStats.keys })}</span>
+                    <span>
+                      {t('settings.backupPassphrases', { count: backupStats.passphrases })}
+                    </span>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Button className="flex-1" onClick={() => void exportBackup()}>
                     <Download data-icon="inline-start" />
                     {t('settings.exportBackup')}
                   </Button>
-                  <Button
-                    className="flex-1"
-                    onClick={async () => {
-                      try {
-                        const result = await window.api.hosts.importBackup()
-                        if (result.status === 'success') {
-                          await onHostsImported()
-                          toast.success(
-                            t('settings.importSuccess', {
-                              count: result.count,
-                              unresolved: result.unresolvedCredentials ?? 0
-                            })
-                          )
-                        }
-                      } catch (error) {
-                        toast.error(t('settings.backupFailed', { message: String(error) }))
-                      }
-                    }}
-                  >
+                  <Button className="flex-1" onClick={() => void importBackup()}>
                     <Upload data-icon="inline-start" />
                     {t('settings.importBackup')}
                   </Button>
                 </div>
               </div>
             </SettingsSection>
+
+            <Dialog
+              open={backupPasswordMode !== null}
+              onOpenChange={(open) => {
+                if (!open && !backupBusy) void closePasswordDialog()
+              }}
+            >
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>
+                    {backupPasswordMode === 'export'
+                      ? t('settings.encryptedExportTitle')
+                      : t('settings.encryptedImportTitle')}
+                  </DialogTitle>
+                </DialogHeader>
+                <DialogBody className="flex flex-col gap-3.5">
+                  <p className="font-mono text-[10px] leading-4 text-ghost">
+                    {backupPasswordMode === 'export'
+                      ? t('settings.encryptedExportWarning')
+                      : t('settings.encryptedImportWarning')}
+                  </p>
+                  <div>
+                    <Label htmlFor="backup-password">{t('settings.backupPassword')}</Label>
+                    <Input
+                      id="backup-password"
+                      type="password"
+                      autoComplete="new-password"
+                      value={backupPassword}
+                      onChange={(event) => setBackupPassword(event.currentTarget.value)}
+                    />
+                  </div>
+                  {backupPasswordMode === 'export' && (
+                    <div>
+                      <Label htmlFor="backup-password-confirm">
+                        {t('settings.backupPasswordConfirm')}
+                      </Label>
+                      <Input
+                        id="backup-password-confirm"
+                        type="password"
+                        autoComplete="new-password"
+                        value={backupPasswordConfirm}
+                        onChange={(event) => setBackupPasswordConfirm(event.currentTarget.value)}
+                      />
+                    </div>
+                  )}
+                </DialogBody>
+                <DialogFooter className="justify-end">
+                  <Button disabled={backupBusy} onClick={() => void closePasswordDialog()}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    variant="solid"
+                    disabled={backupBusy}
+                    onClick={() => void submitBackupPassword()}
+                  >
+                    {backupPasswordMode === 'export'
+                      ? t('settings.exportBackup')
+                      : t('settings.unlockBackup')}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog
+              open={importPreview !== null}
+              onOpenChange={(open) => {
+                if (!open && !backupBusy) {
+                  setImportPreview(null)
+                  void window.api.hosts.cancelEncryptedBackup()
+                }
+              }}
+            >
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t('settings.encryptedImportPreviewTitle')}</DialogTitle>
+                </DialogHeader>
+                <DialogBody className="flex flex-col gap-3.5">
+                  <p className="font-mono text-[10px] leading-4 text-ghost">
+                    {t('settings.encryptedImportPreviewHint')}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 font-mono text-[11px] text-dim">
+                    <span>{t('settings.backupHosts', { count: importPreview?.hosts ?? 0 })}</span>
+                    <span>{t('settings.backupPasswords', { count: importPreview?.passwords ?? 0 })}</span>
+                    <span>{t('settings.backupKeys', { count: importPreview?.keys ?? 0 })}</span>
+                    <span>{t('settings.backupPassphrases', { count: importPreview?.passphrases ?? 0 })}</span>
+                  </div>
+                </DialogBody>
+                <DialogFooter className="justify-end max-[420px]:flex-wrap">
+                  <Button
+                    disabled={backupBusy}
+                    onClick={() => {
+                      setImportPreview(null)
+                      void window.api.hosts.cancelEncryptedBackup()
+                    }}
+                  >
+                    {t('common.cancel')}
+                  </Button>
+                  <Button disabled={backupBusy} onClick={() => void commitEncryptedImport('merge')}>
+                    {t('settings.importMerge')}
+                  </Button>
+                  <Button
+                    variant="solid"
+                    disabled={backupBusy}
+                    onClick={() => void commitEncryptedImport('replace')}
+                  >
+                    {t('settings.importReplace')}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="about">

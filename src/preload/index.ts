@@ -30,8 +30,13 @@ const api: RendererApi = {
     add: (input: HostInput) => ipcRenderer.invoke(IPC.HostsAdd, input),
     delete: (id: string) => ipcRenderer.invoke(IPC.HostsDelete, id),
     update: (id: string, input: HostInput) => ipcRenderer.invoke(IPC.HostsUpdate, id, input),
-    exportBackup: () => ipcRenderer.invoke(IPC.HostsExport),
-    importBackup: () => ipcRenderer.invoke(IPC.HostsImport)
+    exportBackup: (options) => ipcRenderer.invoke(IPC.HostsExport, options),
+    importBackup: (options) => ipcRenderer.invoke(IPC.HostsImport, options),
+    unlockEncryptedBackup: (password: string) =>
+      ipcRenderer.invoke(IPC.HostsImportUnlock, password),
+    commitEncryptedBackup: (mode) => ipcRenderer.invoke(IPC.HostsImportCommit, mode),
+    cancelEncryptedBackup: () => ipcRenderer.invoke(IPC.HostsImportCancel),
+    getBackupStats: () => ipcRenderer.invoke(IPC.HostsBackupStats)
   },
 
   dialog: {
