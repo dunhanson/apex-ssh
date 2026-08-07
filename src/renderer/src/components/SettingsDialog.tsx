@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   ChevronDown,
+  Copy,
   DatabaseBackup,
   Download,
   FolderDown,
@@ -19,6 +20,7 @@ import logoUrl from '@/assets/logo.svg'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumberInput } from '@/components/ui/number-input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
@@ -29,6 +31,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { useSettings, setSettings } from '@/lib/settings'
+import { generateBackupPassword } from '@/lib/backup-password'
 import { cn } from '@/lib/utils'
 
 interface SettingsWorkspaceProps {
@@ -85,6 +88,7 @@ function NumericSetting({
   integer?: boolean
   onChange: (value: number) => void
 }) {
+  const { t } = useTranslation()
   const [draft, setDraft] = useState(String(value))
 
   useEffect(() => {
@@ -116,15 +120,15 @@ function NumericSetting({
   }
 
   return (
-    <Input
+    <NumberInput
       id={id}
-      type="number"
       min={min}
       max={max}
       step={step}
       value={draft}
-      className="h-9 font-mono [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-      onChange={(event) => applyValidValue(event.currentTarget.value)}
+      incrementLabel={t('common.increaseValue')}
+      decrementLabel={t('common.decreaseValue')}
+      onValueChange={applyValidValue}
       onBlur={normalize}
     />
   )
@@ -195,6 +199,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const [includeCredentials, setIncludeCredentials] = useState(false)
   const [backupStats, setBackupStats] = useState<EncryptedBackupStats | null>(null)
   const [backupPasswordMode, setBackupPasswordMode] = useState<'export' | 'import' | null>(null)
+  const [backupPasswordSource, setBackupPasswordSource] = useState<'custom' | 'random'>('custom')
   const [backupPassword, setBackupPassword] = useState('')
   const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('')
   const [backupBusy, setBackupBusy] = useState(false)
@@ -250,6 +255,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const closePasswordDialog = async () => {
     if (backupPasswordMode === 'import') await window.api.hosts.cancelEncryptedBackup()
     setBackupPasswordMode(null)
+    setBackupPasswordSource('custom')
     setBackupPassword('')
     setBackupPasswordConfirm('')
   }
@@ -293,12 +299,62 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
     }
   }
 
+  const copyBackupPassword = async (password: string, generated: boolean) => {
+    try {
+      const copied = await window.api.clipboard.writeText(password)
+      if (copied) {
+        toast.success(
+          t(
+            generated
+              ? 'settings.randomBackupPasswordCopied'
+              : 'settings.randomBackupPasswordCopiedManually'
+          )
+        )
+      } else {
+        toast.error(
+          t(
+            generated
+              ? 'settings.randomBackupPasswordCopyFailed'
+              : 'settings.randomBackupPasswordManualCopyFailed'
+          )
+        )
+      }
+    } catch {
+      toast.error(
+        t(
+          generated
+            ? 'settings.randomBackupPasswordCopyFailed'
+            : 'settings.randomBackupPasswordManualCopyFailed'
+        )
+      )
+    }
+  }
+
+  const generateAndCopyBackupPassword = async () => {
+    const password = generateBackupPassword()
+    setBackupPassword(password)
+    setBackupPasswordConfirm('')
+    await copyBackupPassword(password, true)
+  }
+
+  const selectBackupPasswordSource = (source: 'custom' | 'random') => {
+    if (backupPasswordSource === source) return
+    setBackupPasswordSource(source)
+    setBackupPassword('')
+    setBackupPasswordConfirm('')
+    if (source === 'random') void generateAndCopyBackupPassword()
+  }
+
   const submitBackupPassword = async () => {
     if (backupPassword.length < 12) {
       toast.error(t('settings.backupPasswordTooShort'))
       return
     }
-    if (backupPasswordMode === 'export' && backupPassword !== backupPasswordConfirm) {
+    if (
+      backupPasswordMode === 'export' &&
+      backupPasswordSource === 'custom' &&
+      backupPassword !== backupPasswordConfirm
+    ) {
       toast.error(t('settings.backupPasswordMismatch'))
       return
     }
@@ -525,12 +581,14 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
 
           <TabsContent value="backup">
             <SettingsSection title={t('settings.hostBackup')}>
-              <div className="max-w-[560px]">
-                <Label>{t('settings.hostBackupLabel')}</Label>
-                <div className="mb-2.5 max-w-[420px] font-mono text-[10px] leading-4 text-ghost">
-                  {t('settings.hostBackupBaseHint')}
+              <div className="flex max-w-[560px] flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <Label className="mb-0">{t('settings.hostBackupLabel')}</Label>
+                  <p className="font-mono text-[10px] leading-4 text-ghost">
+                    {t('settings.hostBackupBaseHint')}
+                  </p>
                 </div>
-                <div className="mb-2.5 flex min-h-9 max-w-[420px] items-center justify-between gap-4 rounded-sm border border-line bg-surface px-2.5">
+                <div className="flex min-h-12 items-center justify-between gap-4 rounded-sm border border-line bg-surface px-3 py-2">
                   <div className="min-w-0">
                     <div className="font-mono text-[11px] leading-4 text-body">
                       {t('settings.includeCredentials')}
@@ -560,7 +618,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   />
                 </div>
                 {includeCredentials && backupStats && (
-                  <div className="mb-2.5 flex flex-wrap gap-x-3.5 gap-y-1 font-mono text-[10px] leading-4 text-ghost">
+                  <div className="flex flex-wrap gap-x-3.5 gap-y-1 font-mono text-[10px] leading-4 text-ghost">
                     <span>{t('settings.backupHosts', { count: backupStats.hosts })}</span>
                     <span>{t('settings.backupPasswords', { count: backupStats.passwords })}</span>
                     <span>{t('settings.backupKeys', { count: backupStats.keys })}</span>
@@ -569,12 +627,12 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     </span>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <Button className="flex-1" onClick={() => void exportBackup()}>
+                <div className="settings-backup-actions grid gap-3">
+                  <Button className="w-full" onClick={() => void exportBackup()}>
                     <Download data-icon="inline-start" />
                     {t('settings.exportBackup')}
                   </Button>
-                  <Button className="flex-1" onClick={() => void importBackup()}>
+                  <Button className="w-full" onClick={() => void importBackup()}>
                     <Upload data-icon="inline-start" />
                     {t('settings.importBackup')}
                   </Button>
@@ -602,17 +660,76 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                       ? t('settings.encryptedExportWarning')
                       : t('settings.encryptedImportWarning')}
                   </p>
-                  <div>
-                    <Label htmlFor="backup-password">{t('settings.backupPassword')}</Label>
-                    <Input
-                      id="backup-password"
-                      type="password"
-                      autoComplete="new-password"
-                      value={backupPassword}
-                      onChange={(event) => setBackupPassword(event.currentTarget.value)}
-                    />
-                  </div>
                   {backupPasswordMode === 'export' && (
+                    <div>
+                      <Label>{t('settings.backupPasswordSource')}</Label>
+                      <Tabs
+                        value={backupPasswordSource}
+                        onValueChange={(value) =>
+                          selectBackupPasswordSource(value as 'custom' | 'random')
+                        }
+                      >
+                        <TabsList
+                          className="h-9 w-full"
+                          aria-label={t('settings.backupPasswordSource')}
+                        >
+                          <TabsTrigger value="custom">
+                            {t('settings.customBackupPassword')}
+                          </TabsTrigger>
+                          <TabsTrigger value="random">
+                            {t('settings.randomBackupPassword')}
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
+                  )}
+                  <div>
+                    <Label htmlFor="backup-password">
+                      {backupPasswordMode === 'export' && backupPasswordSource === 'random'
+                        ? t('settings.generatedBackupPassword')
+                        : t('settings.backupPassword')}
+                    </Label>
+                    {backupPasswordMode === 'export' && backupPasswordSource === 'random' ? (
+                      <div className="grid grid-cols-[minmax(0,1fr)_36px_36px] gap-2">
+                        <Input
+                          id="backup-password"
+                          type="text"
+                          readOnly
+                          value={backupPassword}
+                          className="font-mono text-dim"
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          className="size-9"
+                          aria-label={t('settings.copyRandomBackupPassword')}
+                          title={t('settings.copyRandomBackupPassword')}
+                          onClick={() => void copyBackupPassword(backupPassword, false)}
+                        >
+                          <Copy data-icon="inline-start" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          className="size-9"
+                          aria-label={t('settings.refreshRandomBackupPassword')}
+                          title={t('settings.refreshRandomBackupPassword')}
+                          onClick={() => void generateAndCopyBackupPassword()}
+                        >
+                          <RefreshCw data-icon="inline-start" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Input
+                        id="backup-password"
+                        type="password"
+                        autoComplete="new-password"
+                        value={backupPassword}
+                        onChange={(event) => setBackupPassword(event.currentTarget.value)}
+                      />
+                    )}
+                  </div>
+                  {backupPasswordMode === 'export' && backupPasswordSource === 'custom' && (
                     <div>
                       <Label htmlFor="backup-password-confirm">
                         {t('settings.backupPasswordConfirm')}
@@ -695,7 +812,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
 
           <TabsContent value="about">
             <SettingsSection title={t('settings.about')}>
-              <div className="flex min-h-14 max-w-[520px] items-center gap-3 rounded-sm border border-line bg-surface px-3">
+              <div className="flex min-h-14 max-w-[560px] items-center gap-3 rounded-sm border border-line bg-surface px-3">
                 <img src={logoUrl} alt="" className="size-7 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="font-mono text-[12px] text-fg">Apex SSH</div>
@@ -708,7 +825,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                 </div>
               </div>
 
-              <div className="flex max-w-[520px] flex-col gap-2.5 rounded-sm border border-line bg-surface px-3 py-3">
+              <div className="flex max-w-[560px] flex-col gap-2.5 rounded-sm border border-line bg-surface px-3 py-3">
                 <div className="font-mono text-[10px] leading-4 tracking-[0.08em] text-ghost uppercase">
                   {t('settings.update')}
                 </div>
@@ -724,7 +841,10 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </div>
                 )}
                 {updateStatus?.supported && updateStatus.state !== 'installing' && (
-                  <div className="grid w-full max-w-[420px] grid-cols-2 gap-2 max-[420px]:grid-cols-1">
+                  <div
+                    className="settings-update-actions grid w-full gap-2"
+                    data-count={updateStatus.state === 'downloaded' ? 2 : 1}
+                  >
                     {updateStatus.state !== 'checking' && updateStatus.state !== 'downloading' && (
                       <Button
                         className="h-9 w-full"

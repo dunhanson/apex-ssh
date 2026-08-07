@@ -20,6 +20,8 @@ const resources = {
         browse: '浏览',
         enabled: '已开启',
         disabled: '已关闭',
+        increaseValue: '增大数值',
+        decreaseValue: '减小数值',
         unknown: '未知'
       },
       sidebar: {
@@ -282,6 +284,16 @@ const resources = {
         encryptedImportWarning: '输入独立备份密码以验证文件并预览其中的加密内容。',
         backupPassword: '备份密码',
         backupPasswordConfirm: '确认备份密码',
+        backupPasswordSource: '密码方式',
+        customBackupPassword: '自定义密码',
+        randomBackupPassword: '随机密码',
+        generatedBackupPassword: '随机备份密码',
+        copyRandomBackupPassword: '复制随机密码',
+        refreshRandomBackupPassword: '重新生成随机密码',
+        randomBackupPasswordCopied: '随机密码已生成并复制到剪贴板，请立即妥善保存',
+        randomBackupPasswordCopyFailed: '随机密码已生成，但自动复制失败，请手动复制',
+        randomBackupPasswordCopiedManually: '随机密码已复制到剪贴板',
+        randomBackupPasswordManualCopyFailed: '复制随机密码失败，请手动复制',
         backupPasswordTooShort: '备份密码至少需要 12 个字符',
         backupPasswordMismatch: '两次输入的备份密码不一致',
         unlockBackup: '解锁',
@@ -319,7 +331,7 @@ const resources = {
         restartConfirmTitle: '立即重启更新？',
         restartConfirmDesc: '当前有 {{count}} 个活动 SSH 会话，重启更新会断开这些会话。',
         restartConfirm: '断开并更新',
-        autoApplied: '设置已自动应用'
+        autoApplied: '设置已自动保存'
       },
       detached: {
         missing: '会话已不存在，可关闭本窗口'
@@ -339,6 +351,8 @@ const resources = {
         browse: 'Browse',
         enabled: 'Enabled',
         disabled: 'Disabled',
+        increaseValue: 'Increase value',
+        decreaseValue: 'Decrease value',
         unknown: 'unknown'
       },
       sidebar: {
@@ -601,6 +615,16 @@ const resources = {
         encryptedImportWarning: 'Enter the backup password to verify the file and preview its encrypted contents.',
         backupPassword: 'Backup password',
         backupPasswordConfirm: 'Confirm backup password',
+        backupPasswordSource: 'Password method',
+        customBackupPassword: 'Custom password',
+        randomBackupPassword: 'Random password',
+        generatedBackupPassword: 'Generated backup password',
+        copyRandomBackupPassword: 'Copy random password',
+        refreshRandomBackupPassword: 'Generate another random password',
+        randomBackupPasswordCopied: 'Random password generated and copied; store it safely now',
+        randomBackupPasswordCopyFailed: 'Random password generated, but automatic copy failed; copy it manually',
+        randomBackupPasswordCopiedManually: 'Random password copied to the clipboard',
+        randomBackupPasswordManualCopyFailed: 'Could not copy the random password; copy it manually',
         backupPasswordTooShort: 'The backup password must be at least 12 characters',
         backupPasswordMismatch: 'The backup passwords do not match',
         unlockBackup: 'Unlock',
@@ -638,7 +662,7 @@ const resources = {
         restartConfirmTitle: 'Restart and update now?',
         restartConfirmDesc: '{{count}} active SSH session(s) will be disconnected when the app restarts.',
         restartConfirm: 'Disconnect and update',
-        autoApplied: 'Settings are applied automatically'
+        autoApplied: 'Settings are saved automatically'
       },
       detached: {
         missing: 'Session no longer exists — you may close this window'

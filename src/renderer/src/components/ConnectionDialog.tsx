@@ -5,6 +5,7 @@ import { ArrowLeft, Check, ChevronDown, FileKey, FolderOpen } from 'lucide-react
 import type { AuthConfig, HostConfig, HostInput, KeyEntry, PasswordMeta, SshConfigEntry } from '@shared/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { NumberInput } from '@/components/ui/number-input'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
@@ -283,13 +284,15 @@ export function ConnectionDialog({
               </div>
               <div>
                 <Label htmlFor="nc-port">{t('newConn.port')}</Label>
-                <Input
+                <NumberInput
                   id="nc-port"
-                  type="number"
                   min={1}
                   max={65535}
+                  step={1}
                   value={port}
-                  onChange={(e) => setPort(e.target.value)}
+                  incrementLabel={t('common.increaseValue')}
+                  decrementLabel={t('common.decreaseValue')}
+                  onValueChange={setPort}
                 />
               </div>
             </div>

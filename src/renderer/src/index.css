@@ -274,6 +274,20 @@ body {
 .settings-form-wide {
   grid-column: 1 / -1;
 }
+.settings-backup-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.settings-update-actions {
+  grid-template-columns: minmax(0, 1fr);
+}
+.settings-update-actions[data-count='2'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@container (max-width: 420px) {
+  .settings-update-actions[data-count='2'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 @container (max-width: 720px) {
   .settings-workspace {
     grid-template-columns: minmax(0, 1fr);
@@ -304,6 +318,9 @@ body {
   }
   .settings-form-wide {
     grid-column: auto;
+  }
+  .settings-backup-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
