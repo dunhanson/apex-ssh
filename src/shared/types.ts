@@ -184,6 +184,10 @@ export interface AppSettings {
   showSessionInfoBar: boolean
   /** 默认下载目录；空串表示每次询问（记住上次选择的目录） */
   downloadDir: string
+  /** 备份时是否默认包含登录凭证 */
+  backupIncludeCredentials: boolean
+  /** 加密备份默认使用的密码方式；只保存方式，不保存密码内容 */
+  backupPasswordSource: 'custom' | 'random'
 }
 
 /**

@@ -4,7 +4,7 @@ import type { AppSettings } from '@shared/types'
 import { IPC } from '@shared/types'
 
 /**
- * 应用设置持久化：终端字号 / 光标样式 / 回滚行数 / 界面语言 / 会话信息栏 / 默认下载目录。
+ * 应用设置持久化：终端、界面、传输及非敏感备份偏好。
  * set 后广播 SettingsChanged 给所有窗口，终端与 i18n 即时生效。
  * 上次下载目录（lastDownloadDir）静默记录，不进入设置界面。
  */
@@ -14,7 +14,9 @@ const DEFAULTS: AppSettings = {
   scrollback: 5000,
   language: 'system',
   showSessionInfoBar: true,
-  downloadDir: ''
+  downloadDir: '',
+  backupIncludeCredentials: true,
+  backupPasswordSource: 'custom'
 }
 
 const store = new Store<{ settings: AppSettings; lastDownloadDir: string }>({
@@ -56,7 +58,15 @@ function normalizeSettings(candidate: Partial<AppSettings>): AppSettings {
       typeof candidate.showSessionInfoBar === 'boolean'
         ? candidate.showSessionInfoBar
         : DEFAULTS.showSessionInfoBar,
-    downloadDir: typeof candidate.downloadDir === 'string' ? candidate.downloadDir : DEFAULTS.downloadDir
+    downloadDir: typeof candidate.downloadDir === 'string' ? candidate.downloadDir : DEFAULTS.downloadDir,
+    backupIncludeCredentials:
+      typeof candidate.backupIncludeCredentials === 'boolean'
+        ? candidate.backupIncludeCredentials
+        : DEFAULTS.backupIncludeCredentials,
+    backupPasswordSource:
+      candidate.backupPasswordSource === 'custom' || candidate.backupPasswordSource === 'random'
+        ? candidate.backupPasswordSource
+        : DEFAULTS.backupPasswordSource
   }
 }
 

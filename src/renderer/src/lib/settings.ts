@@ -11,7 +11,9 @@ let current: AppSettings = {
   scrollback: 5000,
   language: 'system',
   showSessionInfoBar: true,
-  downloadDir: ''
+  downloadDir: '',
+  backupIncludeCredentials: true,
+  backupPasswordSource: 'custom'
 }
 const listeners = new Set<() => void>()
 

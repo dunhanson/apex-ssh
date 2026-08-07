@@ -196,15 +196,15 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const [category, setCategory] = useState<SettingsCategory>('terminal')
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null)
   const [restartAsk, setRestartAsk] = useState(false)
-  const [includeCredentials, setIncludeCredentials] = useState(true)
   const [backupStats, setBackupStats] = useState<EncryptedBackupStats | null>(null)
   const [backupPasswordMode, setBackupPasswordMode] = useState<'export' | 'import' | null>(null)
-  const [backupPasswordSource, setBackupPasswordSource] = useState<'custom' | 'random'>('custom')
   const [backupPassword, setBackupPassword] = useState('')
   const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('')
   const [backupBusy, setBackupBusy] = useState(false)
   const [importPreview, setImportPreview] = useState<EncryptedBackupStats | null>(null)
   const patch = (value: Partial<AppSettings>) => setSettings(value)
+  const includeCredentials = settings.backupIncludeCredentials
+  const backupPasswordSource = settings.backupPasswordSource
 
   // 版本与更新状态：初始拉取一次，后续跟随主进程状态广播
   useEffect(() => {
@@ -218,6 +218,23 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
       off()
     }
   }, [])
+
+  useEffect(() => {
+    if (!includeCredentials) {
+      setBackupStats(null)
+      return
+    }
+    let mounted = true
+    window.api.hosts
+      .getBackupStats()
+      .then((stats) => {
+        if (mounted) setBackupStats(stats)
+      })
+      .catch((error) => toast.error(t('settings.backupFailed', { message: String(error) })))
+    return () => {
+      mounted = false
+    }
+  }, [includeCredentials, t])
   const categories: SettingsCategoryItem[] = [
     {
       id: 'terminal',
@@ -255,7 +272,6 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const closePasswordDialog = async () => {
     if (backupPasswordMode === 'import') await window.api.hosts.cancelEncryptedBackup()
     setBackupPasswordMode(null)
-    setBackupPasswordSource('custom')
     setBackupPassword('')
     setBackupPasswordConfirm('')
   }
@@ -263,6 +279,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const exportBackup = async () => {
     if (includeCredentials) {
       setBackupPasswordMode('export')
+      if (backupPasswordSource === 'random') void generateAndCopyBackupPassword()
       return
     }
     try {
@@ -339,7 +356,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
 
   const selectBackupPasswordSource = (source: 'custom' | 'random') => {
     if (backupPasswordSource === source) return
-    setBackupPasswordSource(source)
+    patch({ backupPasswordSource: source })
     setBackupPassword('')
     setBackupPasswordConfirm('')
     if (source === 'random') void generateAndCopyBackupPassword()
@@ -602,19 +619,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   <SettingToggle
                     checked={includeCredentials}
                     label={t('settings.includeCredentials')}
-                    onChange={(checked) => {
-                      setIncludeCredentials(checked)
-                      if (!checked) {
-                        setBackupStats(null)
-                        return
-                      }
-                      void window.api.hosts
-                        .getBackupStats()
-                        .then(setBackupStats)
-                        .catch((error) =>
-                          toast.error(t('settings.backupFailed', { message: String(error) }))
-                        )
-                    }}
+                    onChange={(backupIncludeCredentials) => patch({ backupIncludeCredentials })}
                   />
                 </div>
                 {includeCredentials && backupStats && (
