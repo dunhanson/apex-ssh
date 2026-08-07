@@ -506,10 +506,10 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </div>
                 )}
                 {updateStatus?.supported && updateStatus.state !== 'installing' && (
-                  <div className="flex gap-2">
+                  <div className="grid w-full max-w-[420px] grid-cols-2 gap-2 max-[420px]:grid-cols-1">
                     {updateStatus.state !== 'checking' && updateStatus.state !== 'downloading' && (
                       <Button
-                        className="h-9"
+                        className="h-9 w-full"
                         onClick={() => void window.api.updater.check()}
                       >
                         <RefreshCw data-icon="inline-start" />
@@ -520,7 +520,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     )}
                     {updateStatus.state === 'downloaded' && (
                       <Button
-                        className="h-9"
+                        className="h-9 w-full"
                         variant="solid"
                         onClick={() => {
                           // 存在活动 SSH 会话时必须先确认会断开，再允许立即安装
