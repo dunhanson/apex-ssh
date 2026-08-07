@@ -383,7 +383,8 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
           password: backupPassword
         })
         if (result.status === 'success' && result.stats) {
-          toast.success(t('settings.encryptedExportSuccess', result.stats))
+          const { hosts, passwords, keys } = result.stats
+          toast.success(t('settings.encryptedExportSuccess', { hosts, passwords, keys }))
         }
         await closePasswordDialog()
       } else if (backupPasswordMode === 'import') {
@@ -407,7 +408,8 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
       const result = await window.api.hosts.commitEncryptedBackup(mode)
       if (result.status === 'success') {
         await onHostsImported()
-        toast.success(t('settings.encryptedImportSuccess', result.stats ?? {}))
+        const { hosts = 0, passwords = 0, keys = 0 } = result.stats ?? {}
+        toast.success(t('settings.encryptedImportSuccess', { hosts, passwords, keys }))
         setImportPreview(null)
       }
     } catch (error) {
