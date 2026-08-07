@@ -209,9 +209,8 @@ export function EmptyState({
           <div className="font-mono text-[14px] leading-5 font-medium tracking-[0.14em] text-body">
             APEX <span className="font-sans text-[11px] leading-4 tracking-normal text-faint">SSH</span>
           </div>
-          <div className="h-px flex-1 bg-white/[0.055]" />
           {showHeaderActions && (
-            <div className="flex items-center gap-0.5">
+            <div className="ml-auto flex items-center gap-0.5">
               <button
                 className="launcher-tool"
                 title={t('sidebar.newConnection')}
