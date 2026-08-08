@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   ChevronDown,
+  CloudUpload,
   Copy,
   DatabaseBackup,
   Download,
@@ -15,7 +16,13 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { AppSettings, EncryptedBackupStats, UpdateStatus } from '@shared/types'
+import type {
+  AppSettings,
+  CloudSyncConnectionInput,
+  CloudSyncState,
+  EncryptedBackupStats,
+  UpdateStatus
+} from '@shared/types'
 import logoUrl from '@/assets/logo.svg'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -181,7 +188,7 @@ function SettingsSection({
   )
 }
 
-type SettingsCategory = 'terminal' | 'interface' | 'transfer' | 'backup' | 'about'
+type SettingsCategory = 'terminal' | 'interface' | 'transfer' | 'backup' | 'sync' | 'about'
 
 interface SettingsCategoryItem {
   id: SettingsCategory
@@ -202,6 +209,18 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('')
   const [backupBusy, setBackupBusy] = useState(false)
   const [importPreview, setImportPreview] = useState<EncryptedBackupStats | null>(null)
+  const [syncState, setSyncState] = useState<CloudSyncState | null>(null)
+  const [syncForm, setSyncForm] = useState({
+    host: '',
+    port: '5432',
+    database: '',
+    user: '',
+    password: ''
+  })
+  const [syncKeyInput, setSyncKeyInput] = useState('')
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [regenKeyAsk, setRegenKeyAsk] = useState(false)
+  const [clearRemoteAsk, setClearRemoteAsk] = useState(false)
   const patch = (value: Partial<AppSettings>) => setSettings(value)
   const includeCredentials = settings.backupIncludeCredentials
   const backupPasswordSource = settings.backupPasswordSource
@@ -213,6 +232,30 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
       if (mounted) setUpdateStatus(status)
     })
     const off = window.api.updater.onStatusChanged(setUpdateStatus)
+    return () => {
+      mounted = false
+      off()
+    }
+  }, [])
+
+  // 云同步状态：初始拉取一次，后续跟随主进程状态广播；连接参数只读安全视图（不含密码）
+  useEffect(() => {
+    let mounted = true
+    window.api.cloudSync.getState().then((state) => {
+      if (mounted) setSyncState(state)
+    })
+    window.api.cloudSync.getConnection().then((connection) => {
+      if (mounted && connection) {
+        setSyncForm({
+          host: connection.host,
+          port: String(connection.port),
+          database: connection.database,
+          user: connection.user,
+          password: ''
+        })
+      }
+    })
+    const off = window.api.cloudSync.onStateChanged(setSyncState)
     return () => {
       mounted = false
       off()
@@ -259,6 +302,12 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
       label: t('settings.hostBackup'),
       description: t('settings.backupDescription'),
       icon: DatabaseBackup
+    },
+    {
+      id: 'sync',
+      label: t('settings.cloudSync'),
+      description: t('settings.cloudSyncDescription'),
+      icon: CloudUpload
     },
     {
       id: 'about',
@@ -423,8 +472,94 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
     }
   }
 
-  const updateStatusText = (): string => {
-    if (!updateStatus) return t('settings.updateLoading')
+  const syncConnectionInput = (): CloudSyncConnectionInput => ({
+    host: syncForm.host,
+    port: Number(syncForm.port),
+    database: syncForm.database,
+    user: syncForm.user,
+    ...(syncForm.password ? { password: syncForm.password } : {})
+  })
+
+  const runSyncAction = async (action: () => Promise<string | null>, successKey?: string) => {
+    setSyncBusy(true)
+    try {
+      const error = await action()
+      if (error) toast.error(t('settings.syncFailed', { message: error }))
+      else if (successKey) toast.success(t(successKey))
+    } catch (error) {
+      toast.error(t('settings.syncFailed', { message: String(error) }))
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  const saveSyncConnection = () =>
+    runSyncAction(async () => {
+      const error = await window.api.cloudSync.saveConnection(syncConnectionInput())
+      if (!error) setSyncForm((form) => ({ ...form, password: '' }))
+      return error
+    }, 'settings.syncConnectionSaved')
+
+  const testSyncConnection = () =>
+    runSyncAction(
+      () => window.api.cloudSync.testConnection(syncConnectionInput()),
+      'settings.syncConnectionOk'
+    )
+
+  const generateSyncKey = async () => {
+    setRegenKeyAsk(false)
+    await runSyncAction(window.api.cloudSync.generateKey, 'settings.syncKeyGenerated')
+  }
+
+  const submitSyncKey = () =>
+    runSyncAction(async () => {
+      const error = await window.api.cloudSync.setKey(syncKeyInput)
+      if (!error) setSyncKeyInput('')
+      return error
+    }, 'settings.syncKeySaved')
+
+  const copySyncKey = async () => {
+    const toastId = 'sync-key-copy'
+    try {
+      const copied = await window.api.cloudSync.copyKey()
+      if (copied) toast.success(t('settings.syncKeyCopied'), { id: toastId })
+      else toast.error(t('settings.syncKeyCopyFailed'), { id: toastId })
+    } catch {
+      toast.error(t('settings.syncKeyCopyFailed'), { id: toastId })
+    }
+  }
+
+  const toggleSyncEnabled = (enabled: boolean) =>
+    runSyncAction(
+      () => window.api.cloudSync.setEnabled(enabled),
+      enabled ? 'settings.syncEnabled' : 'settings.syncDisabled'
+    )
+
+  const clearRemote = async () => {
+    setClearRemoteAsk(false)
+    await runSyncAction(window.api.cloudSync.clearRemote, 'settings.syncCleared')
+  }
+
+  const syncStatusText = (): string => {
+    if (!syncState) return t('settings.syncLoading')
+    if (syncState.syncing) return t('settings.syncSyncing')
+    switch (syncState.errorCode) {
+      case 'connection':
+        return t('settings.syncErrorConnection')
+      case 'key':
+        return t('settings.syncErrorKey')
+      case 'format':
+        return t('settings.syncErrorFormat')
+      case 'unknown':
+        return t('settings.syncErrorUnknown')
+    }
+    if (syncState.lastSyncAt) {
+      return t('settings.syncLastSyncAt', { time: new Date(syncState.lastSyncAt).toLocaleString() })
+    }
+    return t('settings.syncNever')
+  }
+
+  const updateStatusText = (): string => {    if (!updateStatus) return t('settings.updateLoading')
     switch (updateStatus.state) {
       case 'idle':
         return t('settings.updateIdle')
@@ -815,6 +950,275 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     onClick={() => void commitEncryptedImport('replace')}
                   >
                     {t('settings.importReplace')}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </TabsContent>
+
+          <TabsContent value="sync">
+            <SettingsSection title={t('settings.syncConnection')}>
+              <div className="flex max-w-[560px] flex-col gap-3">
+                <p className="font-mono text-[10px] leading-4 text-ghost">
+                  {t('settings.syncConnectionHint')}
+                </p>
+                <div className="settings-form-grid">
+                  <div className="settings-form-wide">
+                    <Label htmlFor="sync-host">{t('settings.syncHost')}</Label>
+                    <Input
+                      id="sync-host"
+                      value={syncForm.host}
+                      placeholder="db.xxxx.supabase.co"
+                      autoComplete="off"
+                      onChange={(event) =>
+                        setSyncForm((form) => ({ ...form, host: event.currentTarget.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="sync-port">{t('settings.syncPort')}</Label>
+                    <Input
+                      id="sync-port"
+                      inputMode="numeric"
+                      value={syncForm.port}
+                      autoComplete="off"
+                      onChange={(event) =>
+                        setSyncForm((form) => ({ ...form, port: event.currentTarget.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="sync-database">{t('settings.syncDatabase')}</Label>
+                    <Input
+                      id="sync-database"
+                      value={syncForm.database}
+                      placeholder="postgres"
+                      autoComplete="off"
+                      onChange={(event) =>
+                        setSyncForm((form) => ({ ...form, database: event.currentTarget.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="sync-user">{t('settings.syncUser')}</Label>
+                    <Input
+                      id="sync-user"
+                      value={syncForm.user}
+                      placeholder="postgres"
+                      autoComplete="off"
+                      onChange={(event) =>
+                        setSyncForm((form) => ({ ...form, user: event.currentTarget.value }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="sync-password">{t('settings.syncPassword')}</Label>
+                    <Input
+                      id="sync-password"
+                      type="password"
+                      autoComplete="new-password"
+                      value={syncForm.password}
+                      placeholder={
+                        syncState?.configured ? t('settings.syncPasswordSaved') : undefined
+                      }
+                      onChange={(event) =>
+                        setSyncForm((form) => ({ ...form, password: event.currentTarget.value }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="settings-backup-actions grid gap-3">
+                  <Button
+                    className="w-full"
+                    disabled={syncBusy}
+                    onClick={() => void saveSyncConnection()}
+                  >
+                    {t('settings.syncSaveConnection')}
+                  </Button>
+                  <Button
+                    className="w-full"
+                    disabled={syncBusy}
+                    onClick={() => void testSyncConnection()}
+                  >
+                    {t('settings.syncTestConnection')}
+                  </Button>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title={t('settings.syncKeySection')}>
+              <div className="flex max-w-[560px] flex-col gap-3">
+                <p className="font-mono text-[10px] leading-4 text-ghost">
+                  {t('settings.syncKeyHint')}
+                </p>
+                <div className="flex min-h-12 items-center justify-between gap-4 rounded-sm border border-line bg-surface px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="font-mono text-[11px] leading-4 text-body">
+                      {syncState?.hasKey
+                        ? t('settings.syncKeyConfigured')
+                        : t('settings.syncKeyNotConfigured')}
+                    </div>
+                  </div>
+                  {syncState?.hasKey && (
+                    <div className="flex shrink-0 gap-2">
+                      <Button
+                        type="button"
+                        size="icon"
+                        className="size-9"
+                        aria-label={t('settings.syncCopyKey')}
+                        title={t('settings.syncCopyKey')}
+                        onClick={() => void copySyncKey()}
+                      >
+                        <Copy data-icon="inline-start" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        className="size-9"
+                        aria-label={t('settings.syncRegenerateKey')}
+                        title={t('settings.syncRegenerateKey')}
+                        onClick={() => setRegenKeyAsk(true)}
+                      >
+                        <RefreshCw data-icon="inline-start" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {!syncState?.hasKey && (
+                  <Button
+                    className="w-full"
+                    disabled={syncBusy}
+                    onClick={() => void generateSyncKey()}
+                  >
+                    {t('settings.syncGenerateKey')}
+                  </Button>
+                )}
+                <div>
+                  <Label htmlFor="sync-key-input">{t('settings.syncKeyInput')}</Label>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                    <Input
+                      id="sync-key-input"
+                      type="password"
+                      autoComplete="off"
+                      value={syncKeyInput}
+                      placeholder={t('settings.syncKeyPlaceholder')}
+                      onChange={(event) => setSyncKeyInput(event.currentTarget.value)}
+                    />
+                    <Button
+                      className="h-9 shrink-0"
+                      disabled={syncBusy || !syncKeyInput.trim()}
+                      onClick={() => void submitSyncKey()}
+                    >
+                      {t('settings.syncUseKey')}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title={t('settings.syncSection')}>
+              <div className="flex max-w-[560px] flex-col gap-3">
+                <div className="flex min-h-12 items-center justify-between gap-4 rounded-sm border border-line bg-surface px-3 py-2">
+                  <div className="min-w-0">
+                    <div className="font-mono text-[11px] leading-4 text-body">
+                      {t('settings.syncEnable')}
+                    </div>
+                    <div className="font-mono text-[10px] leading-4 text-ghost">
+                      {t('settings.syncEnabledHint')}
+                    </div>
+                  </div>
+                  <SettingToggle
+                    checked={syncState?.enabled ?? false}
+                    label={t('settings.syncEnable')}
+                    onChange={(enabled) => void toggleSyncEnabled(enabled)}
+                  />
+                </div>
+                <div className="font-mono text-[11px] leading-4 text-dim break-all">
+                  {syncStatusText()}
+                </div>
+                {syncState?.lastResult && (
+                  <div className="font-mono text-[10px] leading-4 text-ghost">
+                    {t('settings.syncResult', {
+                      pushed: syncState.lastResult.pushed,
+                      pulled: syncState.lastResult.pulled,
+                      deleted: syncState.lastResult.deleted,
+                      skipped: syncState.lastResult.skipped,
+                      conflicts: syncState.lastResult.conflicts
+                    })}
+                  </div>
+                )}
+                <Button
+                  className="w-full"
+                  disabled={syncBusy || !syncState?.enabled || syncState.syncing}
+                  onClick={() => void runSyncAction(window.api.cloudSync.syncNow)}
+                >
+                  <RefreshCw data-icon="inline-start" />
+                  {t('settings.syncNow')}
+                </Button>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title={t('settings.syncDanger')}>
+              <div className="flex max-w-[560px] flex-col gap-3">
+                <Button
+                  className="w-full"
+                  disabled={syncBusy || !syncState?.configured}
+                  onClick={() => setClearRemoteAsk(true)}
+                >
+                  {t('settings.syncClearRemote')}
+                </Button>
+              </div>
+            </SettingsSection>
+
+            {/* 重新生成密钥确认：云端密文将被清空重写 */}
+            <Dialog open={regenKeyAsk} onOpenChange={setRegenKeyAsk}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t('settings.syncRegenerateConfirmTitle')}</DialogTitle>
+                </DialogHeader>
+                <DialogBody>
+                  <p className="font-mono text-[11px] text-dim leading-relaxed">
+                    {t('settings.syncRegenerateConfirmDesc')}
+                  </p>
+                </DialogBody>
+                <DialogFooter className="justify-end">
+                  <Button size="sm" onClick={() => setRegenKeyAsk(false)}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="solid"
+                    disabled={syncBusy}
+                    onClick={() => void generateSyncKey()}
+                  >
+                    {t('settings.syncRegenerateConfirm')}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* 清空云端数据确认 */}
+            <Dialog open={clearRemoteAsk} onOpenChange={setClearRemoteAsk}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t('settings.syncClearConfirmTitle')}</DialogTitle>
+                </DialogHeader>
+                <DialogBody>
+                  <p className="font-mono text-[11px] text-dim leading-relaxed">
+                    {t('settings.syncClearConfirmDesc')}
+                  </p>
+                </DialogBody>
+                <DialogFooter className="justify-end">
+                  <Button size="sm" onClick={() => setClearRemoteAsk(false)}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="solid"
+                    disabled={syncBusy}
+                    onClick={() => void clearRemote()}
+                  >
+                    {t('settings.syncClearConfirm')}
                   </Button>
                 </DialogFooter>
               </DialogContent>

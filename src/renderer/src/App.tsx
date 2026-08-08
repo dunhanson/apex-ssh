@@ -71,6 +71,13 @@ export default function App() {
     window.api.hosts.list().then(setHosts)
   }, [])
 
+  // 云同步拉取应用了远端变更时，重新加载主机列表保持侧栏一致
+  useEffect(() => {
+    return window.api.cloudSync.onApplied(() => {
+      window.api.hosts.list().then(setHosts)
+    })
+  }, [])
+
   /** 清理某会话的重连计时器与计数 */
   const clearRetry = useCallback((sessionId: string) => {
     const timer = retryTimerRef.current.get(sessionId)

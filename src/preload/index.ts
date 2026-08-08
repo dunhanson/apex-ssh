@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import type {
   AppSettings,
+  CloudSyncConnectionInput,
+  CloudSyncState,
   ConflictPolicy,
   DetachedSessionInfo,
   DownloadItem,
@@ -166,6 +168,31 @@ const api: RendererApi = {
       const listener = (_e: IpcRendererEvent, status: UpdateStatus) => cb(status)
       ipcRenderer.on(IPC.UpdaterStatusChanged, listener)
       return () => ipcRenderer.removeListener(IPC.UpdaterStatusChanged, listener)
+    }
+  },
+
+  cloudSync: {
+    getState: () => ipcRenderer.invoke(IPC.CloudSyncGetState),
+    getConnection: () => ipcRenderer.invoke(IPC.CloudSyncGetConnection),
+    saveConnection: (input: CloudSyncConnectionInput) =>
+      ipcRenderer.invoke(IPC.CloudSyncSaveConnection, input),
+    testConnection: (input: CloudSyncConnectionInput) =>
+      ipcRenderer.invoke(IPC.CloudSyncTestConnection, input),
+    generateKey: () => ipcRenderer.invoke(IPC.CloudSyncGenerateKey),
+    setKey: (key: string) => ipcRenderer.invoke(IPC.CloudSyncSetKey, key),
+    copyKey: () => ipcRenderer.invoke(IPC.CloudSyncCopyKey),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke(IPC.CloudSyncSetEnabled, enabled),
+    syncNow: () => ipcRenderer.invoke(IPC.CloudSyncSyncNow),
+    clearRemote: () => ipcRenderer.invoke(IPC.CloudSyncClearRemote),
+    onStateChanged: (cb) => {
+      const listener = (_e: IpcRendererEvent, state: CloudSyncState) => cb(state)
+      ipcRenderer.on(IPC.CloudSyncStateChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.CloudSyncStateChanged, listener)
+    },
+    onApplied: (cb) => {
+      const listener = () => cb()
+      ipcRenderer.on(IPC.CloudSyncApplied, listener)
+      return () => ipcRenderer.removeListener(IPC.CloudSyncApplied, listener)
     }
   },
 

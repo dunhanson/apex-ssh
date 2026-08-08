@@ -238,3 +238,20 @@ export function importHosts(
 export function restoreHostsSnapshot(hosts: HostConfig[]): void {
   store.set('hosts', hosts)
 }
+
+/** 仅供云同步：按记录整体覆盖写入（后写胜出），调用方已完成形状校验。 */
+export function upsertHostForSync(host: HostConfig): void {
+  const hosts = listHosts()
+  const index = hosts.findIndex((entry) => entry.id === host.id)
+  if (index === -1) hosts.push(host)
+  else hosts[index] = host
+  store.set('hosts', hosts)
+}
+
+/** 仅供云同步：删除远端已删除的主机记录。 */
+export function deleteHostForSync(id: string): void {
+  store.set(
+    'hosts',
+    listHosts().filter((entry) => entry.id !== id)
+  )
+}

@@ -20,6 +20,7 @@ import * as settings from './settings'
 import * as sftp from './sftp'
 import * as ssh from './ssh'
 import { initUpdater, registerUpdaterIpc } from './updater'
+import { initCloudSync, notifyLocalChange, registerCloudSyncIpc } from './cloud-sync'
 import {
   decryptCompleteBackup,
   encryptCompleteBackup,
@@ -141,9 +142,20 @@ function registerIpc(): void {
   ipcMain.handle(IPC.ClipboardReadText, () => clipboard.readText())
 
   ipcMain.handle(IPC.HostsList, () => listHosts())
-  ipcMain.handle(IPC.HostsAdd, (_e, input: HostInput) => addHost(input))
-  ipcMain.handle(IPC.HostsDelete, (_e, id: string) => deleteHost(id))
-  ipcMain.handle(IPC.HostsUpdate, (_e, id: string, input: HostInput) => updateHost(id, input))
+  ipcMain.handle(IPC.HostsAdd, (_e, input: HostInput) => {
+    const host = addHost(input)
+    notifyLocalChange()
+    return host
+  })
+  ipcMain.handle(IPC.HostsDelete, (_e, id: string) => {
+    deleteHost(id)
+    notifyLocalChange()
+  })
+  ipcMain.handle(IPC.HostsUpdate, (_e, id: string, input: HostInput) => {
+    const host = updateHost(id, input)
+    notifyLocalChange()
+    return host
+  })
   ipcMain.handle(IPC.HostsExport, async (e, options?: { includeCredentials?: boolean; password?: string }) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     if (options?.includeCredentials) {
@@ -231,6 +243,7 @@ function registerIpc(): void {
     })
     if (confirmation.response === 0) return { status: 'cancelled', count: 0 }
     const result = importHosts(backup.hosts, confirmation.response === 2 ? 'replace' : 'merge')
+    notifyLocalChange()
     const localKeyIds = new Set(creds.listKeys().map((entry) => entry.id))
     const localPasswordIds = new Set(creds.listPasswords().map((entry) => entry.id))
     const unresolvedCredentials = backup.hosts.filter((host) =>
@@ -264,6 +277,7 @@ function registerIpc(): void {
     if (mode !== 'merge' && mode !== 'replace') throw new Error('导入模式无效')
     try {
       const result = await importCompleteBackupPayload(pending.payload, mode)
+      notifyLocalChange()
       return {
         status: 'success',
         count: pending.payload.hosts.length,
@@ -384,25 +398,47 @@ function registerIpc(): void {
   ipcMain.on(IPC.SftpCancel, (_e, taskId: string) => sftp.cancelTransfer(taskId))
 
   ipcMain.handle(IPC.CredsListKeys, () => creds.listKeys())
-  ipcMain.handle(IPC.CredsGenerateKey, (_e, name: string) => creds.generateKey(name))
-  ipcMain.handle(IPC.CredsImportKey, (_e, name: string, sourcePath: string) =>
-    creds.importKey(name, sourcePath)
-  )
-  ipcMain.handle(IPC.CredsReplaceKey, (_e, id: string, sourcePath: string) =>
-    creds.replaceKey(id, sourcePath)
-  )
-  ipcMain.handle(IPC.CredsRenameKey, (_e, id: string, name: string) =>
-    creds.renameKey(id, name)
-  )
-  ipcMain.handle(IPC.CredsDeleteKey, (_e, id: string) => creds.deleteKey(id))
+  ipcMain.handle(IPC.CredsGenerateKey, async (_e, name: string) => {
+    const result = await creds.generateKey(name)
+    if ('entry' in result) notifyLocalChange()
+    return result
+  })
+  ipcMain.handle(IPC.CredsImportKey, async (_e, name: string, sourcePath: string) => {
+    const result = await creds.importKey(name, sourcePath)
+    if ('entry' in result) notifyLocalChange()
+    return result
+  })
+  ipcMain.handle(IPC.CredsReplaceKey, async (_e, id: string, sourcePath: string) => {
+    const result = await creds.replaceKey(id, sourcePath)
+    if ('entry' in result) notifyLocalChange()
+    return result
+  })
+  ipcMain.handle(IPC.CredsRenameKey, (_e, id: string, name: string) => {
+    const error = creds.renameKey(id, name)
+    if (error === null) notifyLocalChange()
+    return error
+  })
+  ipcMain.handle(IPC.CredsDeleteKey, (_e, id: string) => {
+    const error = creds.deleteKey(id)
+    if (error === null) notifyLocalChange()
+    return error
+  })
   ipcMain.handle(IPC.CredsListPasswords, () => creds.listPasswords())
-  ipcMain.handle(IPC.CredsAddPassword, (_e, label: string, password: string) =>
-    creds.addPassword(label, password)
-  )
-  ipcMain.handle(IPC.CredsUpdatePassword, (_e, id: string, label: string, password: string) =>
-    creds.updatePassword(id, label, password)
-  )
-  ipcMain.handle(IPC.CredsDeletePassword, (_e, id: string) => creds.deletePassword(id))
+  ipcMain.handle(IPC.CredsAddPassword, (_e, label: string, password: string) => {
+    const meta = creds.addPassword(label, password)
+    notifyLocalChange()
+    return meta
+  })
+  ipcMain.handle(IPC.CredsUpdatePassword, (_e, id: string, label: string, password: string) => {
+    const error = creds.updatePassword(id, label, password)
+    if (error === null) notifyLocalChange()
+    return error
+  })
+  ipcMain.handle(IPC.CredsDeletePassword, (_e, id: string) => {
+    const error = creds.deletePassword(id)
+    if (error === null) notifyLocalChange()
+    return error
+  })
 
   ipcMain.handle(IPC.SettingsGet, () => settings.getSettings())
   ipcMain.handle(IPC.SettingsSet, (_e, patch: Parameters<typeof settings.setSettings>[0]) =>
@@ -410,6 +446,7 @@ function registerIpc(): void {
   )
 
   registerUpdaterIpc()
+  registerCloudSyncIpc()
 
   ipcMain.handle(IPC.LocalHome, () => homedir())
   ipcMain.handle(IPC.LocalList, async (_e, path: string): Promise<SftpListResult> => {
@@ -472,6 +509,8 @@ app.whenReady().then(() => {
   createWindow()
   // 后台初始化更新服务：仅打包后的 Windows 生效，内部延迟触发首次检查
   initUpdater()
+  // 后台初始化云同步：仅在用户已启用时生效，内部延迟触发首次同步
+  initCloudSync()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

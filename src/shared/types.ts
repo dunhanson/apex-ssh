@@ -230,6 +230,56 @@ export interface UpdateStatus {
   message?: string
 }
 
+/** 云同步连接参数（渲染端输入；password 为空表示沿用已保存的密码） */
+export interface CloudSyncConnectionInput {
+  host: string
+  port: number
+  database: string
+  user: string
+  /** 敏感：仅在渲染 → 主方向传递，主进程经 safeStorage 加密后持久化 */
+  password?: string
+}
+
+/** 云同步连接参数的安全视图（不含密码） */
+export interface CloudSyncConnectionView {
+  host: string
+  port: number
+  database: string
+  user: string
+}
+
+/** 云同步失败分类：渲染端据此选择友好文案，原始错误只进主进程日志 */
+export type CloudSyncErrorCode = 'connection' | 'key' | 'format' | 'unknown'
+
+/** 一次同步的结果统计（不含任何敏感内容） */
+export interface CloudSyncResult {
+  /** 加密上传到云端的记录数（含删除墓碑） */
+  pushed: number
+  /** 从云端拉取并应用到本地的记录数 */
+  pulled: number
+  /** 因远端删除墓碑而删除的本地记录数 */
+  deleted: number
+  /** 解密 / 校验 / 写入失败而跳过的记录数 */
+  skipped: number
+  /** 双方同时变更（远端胜出）的记录数 */
+  conflicts: number
+}
+
+/** 主 → 渲染：云同步状态快照（状态广播与 getState 共用同一形状） */
+export interface CloudSyncState {
+  /** 是否已保存完整的数据库连接参数 */
+  configured: boolean
+  enabled: boolean
+  hasKey: boolean
+  syncing: boolean
+  /** 上次成功同步时间（ms epoch） */
+  lastSyncAt?: number
+  lastResult?: CloudSyncResult
+  errorCode?: CloudSyncErrorCode
+  /** 原始错误信息，仅供诊断，渲染端优先按 errorCode 展示 */
+  message?: string
+}
+
 /** IPC 通道名常量，避免三端各自硬编码 */
 export const IPC = {
   Ping: 'app:ping',
@@ -304,7 +354,21 @@ export const IPC = {
   UpdaterCheck: 'updater:check',
   UpdaterRestartAndInstall: 'updater:restart-and-install',
   /** 主 → 渲染：更新状态变更事件，payload 为 UpdateStatus */
-  UpdaterStatusChanged: 'updater:status-changed'
+  UpdaterStatusChanged: 'updater:status-changed',
+  CloudSyncGetState: 'cloud-sync:get-state',
+  CloudSyncGetConnection: 'cloud-sync:get-connection',
+  CloudSyncSaveConnection: 'cloud-sync:save-connection',
+  CloudSyncTestConnection: 'cloud-sync:test-connection',
+  CloudSyncGenerateKey: 'cloud-sync:generate-key',
+  CloudSyncSetKey: 'cloud-sync:set-key',
+  CloudSyncCopyKey: 'cloud-sync:copy-key',
+  CloudSyncSetEnabled: 'cloud-sync:set-enabled',
+  CloudSyncSyncNow: 'cloud-sync:sync-now',
+  CloudSyncClearRemote: 'cloud-sync:clear-remote',
+  /** 主 → 渲染：云同步状态变更事件，payload 为 CloudSyncState */
+  CloudSyncStateChanged: 'cloud-sync:state-changed',
+  /** 主 → 渲染：同步拉取应用了本地变更（应重新加载主机与凭证列表） */
+  CloudSyncApplied: 'cloud-sync:applied'
 } as const
 
 /** 预加载桥暴露给渲染进程的 window.api 形状 */
@@ -446,6 +510,32 @@ export interface RendererApi {
     restartAndInstall: () => Promise<void>
     /** 订阅更新状态变更，返回取消订阅函数 */
     onStatusChanged: (cb: (status: UpdateStatus) => void) => () => void
+  }
+  cloudSync: {
+    /** 当前云同步状态快照 */
+    getState: () => Promise<CloudSyncState>
+    /** 已保存的连接参数（不含密码）；未配置返回 null */
+    getConnection: () => Promise<CloudSyncConnectionView | null>
+    /** 保存连接参数；返回 null 成功，否则错误信息。password 为空沿用已保存密码 */
+    saveConnection: (input: CloudSyncConnectionInput) => Promise<string | null>
+    /** 用给定参数试连并初始化表结构；不落盘，返回 null 成功 */
+    testConnection: (input: CloudSyncConnectionInput) => Promise<string | null>
+    /** 生成新的 24 位随机同步密钥并持久化；已启用时会清空云端并全量重写 */
+    generateKey: () => Promise<string | null>
+    /** 填入其他设备已在使用的同步密钥；云端有数据时先校验可解密 */
+    setKey: (key: string) => Promise<string | null>
+    /** 经系统剪贴板复制同步密钥；密钥不回传渲染进程 */
+    copyKey: () => Promise<boolean>
+    /** 启用 / 停用云同步；启用时立即执行一次同步 */
+    setEnabled: (enabled: boolean) => Promise<string | null>
+    /** 立即同步；返回 null 成功，否则错误信息 */
+    syncNow: () => Promise<string | null>
+    /** 清空云端全部同步记录（保留表结构） */
+    clearRemote: () => Promise<string | null>
+    /** 订阅云同步状态变更，返回取消订阅函数 */
+    onStateChanged: (cb: (state: CloudSyncState) => void) => () => void
+    /** 订阅同步应用本地变更事件（重新加载主机与凭证列表） */
+    onApplied: (cb: () => void) => () => void
   }
   clipboard: {
     /** 通过 Electron 主进程写入系统剪贴板，避免 Chromium 权限差异 */
