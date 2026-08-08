@@ -277,6 +277,9 @@ body {
 .settings-backup-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.settings-backup-actions[data-count='1'] {
+  grid-template-columns: minmax(0, 1fr);
+}
 .settings-update-actions {
   grid-template-columns: minmax(0, 1fr);
 }

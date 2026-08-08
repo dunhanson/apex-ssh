@@ -1,11 +1,11 @@
 import Store from 'electron-store'
 import { BrowserWindow, clipboard, ipcMain, safeStorage } from 'electron'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
 import type {
   CloudSyncConnectionInput,
   CloudSyncConnectionView,
   CloudSyncErrorCode,
+  CloudSyncGenerateKeyResult,
   CloudSyncResult,
   CloudSyncState,
   HostConfig
@@ -98,6 +98,7 @@ function loadPg(): typeof import('pg') {
 let syncing = false
 let lastError: { code: CloudSyncErrorCode; message: string } | undefined
 let debounceTimer: NodeJS.Timeout | null = null
+let pendingGeneratedSyncKey: string | null = null
 
 function persisted(): CloudSyncPersistent {
   return {
@@ -172,8 +173,8 @@ async function connectWith(
   const client = new Client({
     ...connection,
     password,
-    // 强制 SSL；Supabase 要求加密连接，明文连接直接拒绝
-    ssl: { rejectUnauthorized: true },
+    // 与 Supabase Shared Pooler 的默认直连方式保持一致，不启用 PostgreSQL TLS。
+    ssl: false,
     connectionTimeoutMillis: CONNECT_TIMEOUT_MS,
     statement_timeout: 30_000
   })
@@ -730,9 +731,10 @@ export function registerCloudSyncIpc(): void {
     }
   )
 
-  ipcMain.handle(IPC.CloudSyncGenerateKey, async (): Promise<string | null> => {
+  ipcMain.handle(IPC.CloudSyncGenerateKey, async (): Promise<CloudSyncGenerateKeyResult> => {
     const syncKey = generateSyncKey()
     store.set('syncKeyBlob', safeStorage.encryptString(syncKey).toString('base64'))
+    pendingGeneratedSyncKey = syncKey
     store.set('shadow', {})
     broadcastState()
     // 更换密钥后云端旧密文不可用：在线时直接清空并全量重写
@@ -745,18 +747,30 @@ export function registerCloudSyncIpc(): void {
         } finally {
           await client.end().catch(() => undefined)
         }
-        return await syncNow()
+        return { copyAvailable: true, error: await syncNow() }
       } catch (error) {
         console.error('[cloud-sync] 重置云端数据失败', error)
-        return errorMessage(error)
+        return { copyAvailable: true, error: errorMessage(error) }
       }
     }
-    return null
+    return { copyAvailable: true, error: null }
+  })
+
+  ipcMain.handle(IPC.CloudSyncCopyGeneratedKey, (): boolean => {
+    if (!pendingGeneratedSyncKey) return false
+    try {
+      clipboard.writeText(pendingGeneratedSyncKey)
+      pendingGeneratedSyncKey = null
+      return true
+    } catch {
+      return false
+    }
   })
 
   ipcMain.handle(IPC.CloudSyncSetKey, async (_e, key: string): Promise<string | null> => {
     if (typeof key !== 'string' || key.trim().length < 12) return '同步密钥无效'
     const syncKey = key.trim()
+    pendingGeneratedSyncKey = null
     const state = persisted()
     // 云端已有数据时先校验密钥可解密，避免错误密钥污染云端
     if (state.connection) {
@@ -780,13 +794,6 @@ export function registerCloudSyncIpc(): void {
     store.set('shadow', {})
     broadcastState()
     return null
-  })
-
-  ipcMain.handle(IPC.CloudSyncCopyKey, (): boolean => {
-    const syncKey = resolveSyncKey()
-    if (!syncKey) return false
-    clipboard.writeText(syncKey)
-    return true
   })
 
   ipcMain.handle(IPC.CloudSyncSetEnabled, async (_e, enabled: boolean): Promise<string | null> => {

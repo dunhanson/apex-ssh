@@ -248,6 +248,13 @@ export interface CloudSyncConnectionView {
   user: string
 }
 
+export interface CloudSyncGenerateKeyResult {
+  /** 当前界面是否可请求主进程复制这把新密钥一次 */
+  copyAvailable: boolean
+  /** null 表示生成及后续云端处理成功 */
+  error: string | null
+}
+
 /** 云同步失败分类：渲染端据此选择友好文案，原始错误只进主进程日志 */
 export type CloudSyncErrorCode = 'connection' | 'key' | 'format' | 'unknown'
 
@@ -360,8 +367,8 @@ export const IPC = {
   CloudSyncSaveConnection: 'cloud-sync:save-connection',
   CloudSyncTestConnection: 'cloud-sync:test-connection',
   CloudSyncGenerateKey: 'cloud-sync:generate-key',
+  CloudSyncCopyGeneratedKey: 'cloud-sync:copy-generated-key',
   CloudSyncSetKey: 'cloud-sync:set-key',
-  CloudSyncCopyKey: 'cloud-sync:copy-key',
   CloudSyncSetEnabled: 'cloud-sync:set-enabled',
   CloudSyncSyncNow: 'cloud-sync:sync-now',
   CloudSyncClearRemote: 'cloud-sync:clear-remote',
@@ -521,11 +528,11 @@ export interface RendererApi {
     /** 用给定参数试连并初始化表结构；不落盘，返回 null 成功 */
     testConnection: (input: CloudSyncConnectionInput) => Promise<string | null>
     /** 生成新的 24 位随机同步密钥并持久化；已启用时会清空云端并全量重写 */
-    generateKey: () => Promise<string | null>
+    generateKey: () => Promise<CloudSyncGenerateKeyResult>
+    /** 用户主动复制刚生成的同步密钥；成功后同一密钥不可再次复制 */
+    copyGeneratedKey: () => Promise<boolean>
     /** 填入其他设备已在使用的同步密钥；云端有数据时先校验可解密 */
     setKey: (key: string) => Promise<string | null>
-    /** 经系统剪贴板复制同步密钥；密钥不回传渲染进程 */
-    copyKey: () => Promise<boolean>
     /** 启用 / 停用云同步；启用时立即执行一次同步 */
     setEnabled: (enabled: boolean) => Promise<string | null>
     /** 立即同步；返回 null 成功，否则错误信息 */

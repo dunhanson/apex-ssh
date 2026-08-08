@@ -218,6 +218,8 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
     password: ''
   })
   const [syncKeyInput, setSyncKeyInput] = useState('')
+  const [syncKeySource, setSyncKeySource] = useState<'generate' | 'existing'>('generate')
+  const [syncGeneratedCopyAvailable, setSyncGeneratedCopyAvailable] = useState(false)
   const [syncBusy, setSyncBusy] = useState(false)
   const [regenKeyAsk, setRegenKeyAsk] = useState(false)
   const [clearRemoteAsk, setClearRemoteAsk] = useState(false)
@@ -328,7 +330,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const exportBackup = async () => {
     if (includeCredentials) {
       setBackupPasswordMode('export')
-      if (backupPasswordSource === 'random') void generateAndCopyBackupPassword()
+      if (backupPasswordSource === 'random') generateBackupPasswordValue()
       return
     }
     try {
@@ -365,46 +367,24 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
     }
   }
 
-  const copyBackupPassword = async (password: string, generated: boolean) => {
+  const copyBackupPassword = async (password: string) => {
     const toastId = 'backup-password-copy'
     try {
       const copied = await window.api.clipboard.writeText(password)
       if (copied) {
-        toast.success(
-          t(
-            generated
-              ? 'settings.randomBackupPasswordCopied'
-              : 'settings.randomBackupPasswordCopiedManually'
-          ),
-          { id: toastId }
-        )
+        toast.success(t('settings.randomBackupPasswordCopied'), { id: toastId })
       } else {
-        toast.error(
-          t(
-            generated
-              ? 'settings.randomBackupPasswordCopyFailed'
-              : 'settings.randomBackupPasswordManualCopyFailed'
-          ),
-          { id: toastId }
-        )
+        toast.error(t('settings.randomBackupPasswordCopyFailed'), { id: toastId })
       }
     } catch {
-      toast.error(
-        t(
-          generated
-            ? 'settings.randomBackupPasswordCopyFailed'
-            : 'settings.randomBackupPasswordManualCopyFailed'
-        ),
-        { id: toastId }
-      )
+      toast.error(t('settings.randomBackupPasswordCopyFailed'), { id: toastId })
     }
   }
 
-  const generateAndCopyBackupPassword = async () => {
+  const generateBackupPasswordValue = () => {
     const password = generateBackupPassword()
     setBackupPassword(password)
     setBackupPasswordConfirm('')
-    await copyBackupPassword(password, true)
   }
 
   const selectBackupPasswordSource = (source: 'custom' | 'random') => {
@@ -412,7 +392,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
     patch({ backupPasswordSource: source })
     setBackupPassword('')
     setBackupPasswordConfirm('')
-    if (source === 'random') void generateAndCopyBackupPassword()
+    if (source === 'random') generateBackupPasswordValue()
   }
 
   const submitBackupPassword = async () => {
@@ -480,6 +460,10 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
     ...(syncForm.password ? { password: syncForm.password } : {})
   })
 
+  const updateSyncField = (field: keyof typeof syncForm, value: string) => {
+    setSyncForm((form) => ({ ...form, [field]: value }))
+  }
+
   const runSyncAction = async (action: () => Promise<string | null>, successKey?: string) => {
     setSyncBusy(true)
     try {
@@ -508,7 +492,51 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
 
   const generateSyncKey = async () => {
     setRegenKeyAsk(false)
-    await runSyncAction(window.api.cloudSync.generateKey, 'settings.syncKeyGenerated')
+    setSyncBusy(true)
+    try {
+      const result = (await window.api.cloudSync.generateKey()) as
+        | Awaited<ReturnType<typeof window.api.cloudSync.generateKey>>
+        | { copied: boolean; error: string | null }
+        | string
+        | null
+      // 开发环境可能只热更新渲染层，旧主进程仍返回 string | null 并保留 copyKey。
+      if (result === null || typeof result === 'string') {
+        setSyncGeneratedCopyAvailable(true)
+        toast.success(t('settings.syncKeyGenerated'))
+        if (typeof result === 'string') {
+          toast.error(t('settings.syncFailed', { message: result }))
+        }
+        return
+      }
+      if ('copied' in result) {
+        setSyncGeneratedCopyAvailable(false)
+        toast.error(t('settings.syncLegacyKeyGenerated'))
+        if (result.error) toast.error(t('settings.syncFailed', { message: result.error }))
+        return
+      }
+      setSyncGeneratedCopyAvailable(result.copyAvailable)
+      if (result.copyAvailable) toast.success(t('settings.syncKeyGenerated'))
+      if (result.error) toast.error(t('settings.syncFailed', { message: result.error }))
+    } catch (error) {
+      toast.error(t('settings.syncFailed', { message: String(error) }))
+    } finally {
+      setSyncBusy(false)
+    }
+  }
+
+  const copyGeneratedSyncKey = async () => {
+    const api = window.api.cloudSync as typeof window.api.cloudSync & {
+      copyKey?: () => Promise<boolean>
+    }
+    try {
+      const copied = await (api.copyGeneratedKey?.() ?? api.copyKey?.() ?? Promise.resolve(false))
+      if (copied) {
+        setSyncGeneratedCopyAvailable(false)
+        toast.success(t('settings.syncKeyCopied'))
+      } else toast.error(t('settings.syncKeyCopyFailed'))
+    } catch {
+      toast.error(t('settings.syncKeyCopyFailed'))
+    }
   }
 
   const submitSyncKey = () =>
@@ -517,17 +545,6 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
       if (!error) setSyncKeyInput('')
       return error
     }, 'settings.syncKeySaved')
-
-  const copySyncKey = async () => {
-    const toastId = 'sync-key-copy'
-    try {
-      const copied = await window.api.cloudSync.copyKey()
-      if (copied) toast.success(t('settings.syncKeyCopied'), { id: toastId })
-      else toast.error(t('settings.syncKeyCopyFailed'), { id: toastId })
-    } catch {
-      toast.error(t('settings.syncKeyCopyFailed'), { id: toastId })
-    }
-  }
 
   const toggleSyncEnabled = (enabled: boolean) =>
     runSyncAction(
@@ -850,7 +867,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                           className="size-9"
                           aria-label={t('settings.copyRandomBackupPassword')}
                           title={t('settings.copyRandomBackupPassword')}
-                          onClick={() => void copyBackupPassword(backupPassword, false)}
+                          onClick={() => void copyBackupPassword(backupPassword)}
                         >
                           <Copy data-icon="inline-start" />
                         </Button>
@@ -860,7 +877,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                           className="size-9"
                           aria-label={t('settings.refreshRandomBackupPassword')}
                           title={t('settings.refreshRandomBackupPassword')}
-                          onClick={() => void generateAndCopyBackupPassword()}
+                          onClick={generateBackupPasswordValue}
                         >
                           <RefreshCw data-icon="inline-start" />
                         </Button>
@@ -970,9 +987,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                       value={syncForm.host}
                       placeholder="db.xxxx.supabase.co"
                       autoComplete="off"
-                      onChange={(event) =>
-                        setSyncForm((form) => ({ ...form, host: event.currentTarget.value }))
-                      }
+                      onChange={(event) => updateSyncField('host', event.currentTarget.value)}
                     />
                   </div>
                   <div>
@@ -982,9 +997,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                       inputMode="numeric"
                       value={syncForm.port}
                       autoComplete="off"
-                      onChange={(event) =>
-                        setSyncForm((form) => ({ ...form, port: event.currentTarget.value }))
-                      }
+                      onChange={(event) => updateSyncField('port', event.currentTarget.value)}
                     />
                   </div>
                   <div>
@@ -994,9 +1007,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                       value={syncForm.database}
                       placeholder="postgres"
                       autoComplete="off"
-                      onChange={(event) =>
-                        setSyncForm((form) => ({ ...form, database: event.currentTarget.value }))
-                      }
+                      onChange={(event) => updateSyncField('database', event.currentTarget.value)}
                     />
                   </div>
                   <div>
@@ -1006,9 +1017,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                       value={syncForm.user}
                       placeholder="postgres"
                       autoComplete="off"
-                      onChange={(event) =>
-                        setSyncForm((form) => ({ ...form, user: event.currentTarget.value }))
-                      }
+                      onChange={(event) => updateSyncField('user', event.currentTarget.value)}
                     />
                   </div>
                   <div>
@@ -1021,9 +1030,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                       placeholder={
                         syncState?.configured ? t('settings.syncPasswordSaved') : undefined
                       }
-                      onChange={(event) =>
-                        setSyncForm((form) => ({ ...form, password: event.currentTarget.value }))
-                      }
+                      onChange={(event) => updateSyncField('password', event.currentTarget.value)}
                     />
                   </div>
                 </div>
@@ -1059,43 +1066,48 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                         : t('settings.syncKeyNotConfigured')}
                     </div>
                   </div>
-                  {syncState?.hasKey && (
-                    <div className="flex shrink-0 gap-2">
-                      <Button
-                        type="button"
-                        size="icon"
-                        className="size-9"
-                        aria-label={t('settings.syncCopyKey')}
-                        title={t('settings.syncCopyKey')}
-                        onClick={() => void copySyncKey()}
-                      >
-                        <Copy data-icon="inline-start" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        className="size-9"
-                        aria-label={t('settings.syncRegenerateKey')}
-                        title={t('settings.syncRegenerateKey')}
-                        onClick={() => setRegenKeyAsk(true)}
-                      >
-                        <RefreshCw data-icon="inline-start" />
-                      </Button>
-                    </div>
-                  )}
                 </div>
-                {!syncState?.hasKey && (
-                  <Button
-                    className="w-full"
-                    disabled={syncBusy}
-                    onClick={() => void generateSyncKey()}
-                  >
-                    {t('settings.syncGenerateKey')}
-                  </Button>
-                )}
                 <div>
-                  <Label htmlFor="sync-key-input">{t('settings.syncKeyInput')}</Label>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+                  <Label>{t('settings.syncKeySource')}</Label>
+                  <Tabs
+                    value={syncKeySource}
+                    onValueChange={(value) =>
+                      setSyncKeySource(value as 'generate' | 'existing')
+                    }
+                  >
+                    <TabsList className="h-9 w-full" aria-label={t('settings.syncKeySource')}>
+                      <TabsTrigger value="generate">{t('settings.syncGenerateMode')}</TabsTrigger>
+                      <TabsTrigger value="existing">{t('settings.syncExistingMode')}</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                {syncKeySource === 'generate' ? (
+                  <div
+                    className="settings-backup-actions grid gap-3"
+                    data-count={syncGeneratedCopyAvailable ? '2' : '1'}
+                  >
+                    {syncGeneratedCopyAvailable && (
+                      <Button disabled={syncBusy} onClick={() => void copyGeneratedSyncKey()}>
+                        <Copy data-icon="inline-start" />
+                        {t('settings.syncCopyKeyOnce')}
+                      </Button>
+                    )}
+                    <Button
+                      disabled={syncBusy}
+                      onClick={() =>
+                        syncState?.hasKey ? setRegenKeyAsk(true) : void generateSyncKey()
+                      }
+                    >
+                      <RefreshCw data-icon="inline-start" />
+                      {syncState?.hasKey
+                        ? t('settings.syncRegenerateKey')
+                        : t('settings.syncGenerateKey')}
+                    </Button>
+                  </div>
+                ) : (
+                  <div>
+                    <Label htmlFor="sync-key-input">{t('settings.syncKeyInput')}</Label>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                     <Input
                       id="sync-key-input"
                       type="password"
@@ -1111,8 +1123,9 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     >
                       {t('settings.syncUseKey')}
                     </Button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </SettingsSection>
 
