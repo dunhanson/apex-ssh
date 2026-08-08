@@ -317,6 +317,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   }
 
   const copyBackupPassword = async (password: string, generated: boolean) => {
+    const toastId = 'backup-password-copy'
     try {
       const copied = await window.api.clipboard.writeText(password)
       if (copied) {
@@ -325,7 +326,8 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
             generated
               ? 'settings.randomBackupPasswordCopied'
               : 'settings.randomBackupPasswordCopiedManually'
-          )
+          ),
+          { id: toastId }
         )
       } else {
         toast.error(
@@ -333,7 +335,8 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
             generated
               ? 'settings.randomBackupPasswordCopyFailed'
               : 'settings.randomBackupPasswordManualCopyFailed'
-          )
+          ),
+          { id: toastId }
         )
       }
     } catch {
@@ -342,7 +345,8 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
           generated
             ? 'settings.randomBackupPasswordCopyFailed'
             : 'settings.randomBackupPasswordManualCopyFailed'
-        )
+        ),
+        { id: toastId }
       )
     }
   }
