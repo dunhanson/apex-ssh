@@ -378,7 +378,7 @@ const resources = {
         syncClearConfirmTitle: '清空云端',
         syncClearConfirmDesc:
           '云端加密记录将被删除且无法恢复，其他设备会在下次同步时同步到删除结果。本地数据不受影响。',
-        syncClearConfirm: '清空云端',
+        syncClearConfirm: '清空',
         syncCleared: '云端同步数据已清空',
         about: '关于',
         aboutDescription: '版本与应用信息',
@@ -404,7 +404,7 @@ const resources = {
         restartConfirmTitle: '立即重启更新？',
         restartConfirmDesc: '当前有 {{count}} 个活动 SSH 会话，重启更新会断开这些会话。',
         restartConfirm: '断开并更新',
-        autoApplied: '设置已自动保存'
+        autoApplied: '修改自动保存'
       },
       detached: {
         missing: '会话已不存在，可关闭本窗口'
@@ -782,7 +782,7 @@ const resources = {
         syncClearConfirmTitle: 'Clear all synced data in the cloud?',
         syncClearConfirmDesc:
           'The encrypted records in the cloud will be deleted and cannot be recovered; other devices will pick up the deletions on their next sync. Local data is not affected.',
-        syncClearConfirm: 'Clear cloud data',
+        syncClearConfirm: 'Clear',
         syncCleared: 'Cloud sync data cleared',
         about: 'About',
         aboutDescription: 'Version and application information',
@@ -808,7 +808,7 @@ const resources = {
         restartConfirmTitle: 'Restart and update now?',
         restartConfirmDesc: '{{count}} active SSH session(s) will be disconnected when the app restarts.',
         restartConfirm: 'Disconnect and update',
-        autoApplied: 'Settings are saved automatically'
+        autoApplied: 'Changes save automatically'
       },
       detached: {
         missing: 'Session no longer exists — you may close this window'
