@@ -9,3 +9,11 @@
 ## 项目记忆
 
 > 后续追加的、与正式程序绑定的永久记忆放在此处。
+
+## 版本发布规则
+
+- 发布 `vX.Y.Z` 前，必须确认 `main` 已包含本次发布内容，工作区干净，并同步核对同级仓库 `apex-internal` 的 HTML 原型与功能清单。
+- 补丁版本发布使用 `release/vX.Y.Z` 短期分支；只允许进行版本号、发布说明、验收和发布缺陷修复，不在发布分支新增无关功能。
+- 发布 `v0.1.1` 时，将 `package.json` 版本从 `0.1.0` 更新为 `0.1.1`，提交版本变更，合并发布分支回 `main`，再在合并后的 `main` 提交上创建带注释标签 `v0.1.1`。
+- 创建标签前必须通过 `pnpm test` 和 `pnpm run build`，并在真实目标平台验证安装、升级、连接、凭证、备份、SFTP 和终端核心流程。
+- 推送 `main` 和 `vX.Y.Z` 标签后，核对 GitHub Actions 构建结果和 GitHub Release；Windows 更新所需的 `latest.yml`、`latest-arm64.yml` 及对应 `.blockmap` 文件不得从 Release 中删除。
