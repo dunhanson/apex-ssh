@@ -1,6 +1,6 @@
 {
   "name": "apex-ssh",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Apex SSH 客户端",
   "author": {
