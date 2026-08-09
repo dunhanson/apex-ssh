@@ -11,6 +11,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: 'system',
   showSessionInfoBar: true,
   downloadDir: '',
+  downloadConflictPolicy: 'ask',
+  confirmUploadOverwrite: true,
+  sftpPanelMode: 'panel',
+  doubleClickUpload: true,
+  maxConcurrentTransfers: 2,
+  notifyTransferComplete: true,
   backupIncludeCredentials: true,
   backupPasswordSource: 'custom'
 }
@@ -36,6 +42,22 @@ export function normalizeSettings(candidate: Partial<AppSettings>): AppSettings 
     candidate.language === 'en-US'
       ? candidate.language
       : DEFAULT_SETTINGS.language
+  const downloadConflictPolicy =
+    candidate.downloadConflictPolicy === 'ask' ||
+    candidate.downloadConflictPolicy === 'overwrite' ||
+    candidate.downloadConflictPolicy === 'skip' ||
+    candidate.downloadConflictPolicy === 'rename'
+      ? candidate.downloadConflictPolicy
+      : DEFAULT_SETTINGS.downloadConflictPolicy
+  const maxConcurrentTransfers =
+    typeof candidate.maxConcurrentTransfers === 'number' &&
+    Number.isFinite(candidate.maxConcurrentTransfers)
+      ? candidate.maxConcurrentTransfers
+      : DEFAULT_SETTINGS.maxConcurrentTransfers
+  const sftpPanelMode =
+    candidate.sftpPanelMode === 'panel' || candidate.sftpPanelMode === 'split'
+      ? candidate.sftpPanelMode
+      : DEFAULT_SETTINGS.sftpPanelMode
 
   return {
     fontSize: Math.min(24, Math.max(12.5, fontSize)),
@@ -64,6 +86,21 @@ export function normalizeSettings(candidate: Partial<AppSettings>): AppSettings 
         : DEFAULT_SETTINGS.showSessionInfoBar,
     downloadDir:
       typeof candidate.downloadDir === 'string' ? candidate.downloadDir : DEFAULT_SETTINGS.downloadDir,
+    downloadConflictPolicy,
+    confirmUploadOverwrite:
+      typeof candidate.confirmUploadOverwrite === 'boolean'
+        ? candidate.confirmUploadOverwrite
+        : DEFAULT_SETTINGS.confirmUploadOverwrite,
+    sftpPanelMode,
+    doubleClickUpload:
+      typeof candidate.doubleClickUpload === 'boolean'
+        ? candidate.doubleClickUpload
+        : DEFAULT_SETTINGS.doubleClickUpload,
+    maxConcurrentTransfers: Math.min(4, Math.max(1, Math.round(maxConcurrentTransfers))),
+    notifyTransferComplete:
+      typeof candidate.notifyTransferComplete === 'boolean'
+        ? candidate.notifyTransferComplete
+        : DEFAULT_SETTINGS.notifyTransferComplete,
     backupIncludeCredentials:
       typeof candidate.backupIncludeCredentials === 'boolean'
         ? candidate.backupIncludeCredentials

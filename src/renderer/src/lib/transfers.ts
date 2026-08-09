@@ -43,7 +43,7 @@ window.api.sftp.onProgress((ev) => {
 })
 
 export function addTransfer(init: Omit<TransferItem, 'transferred' | 'status'>): void {
-  items.set(init.taskId, { ...init, transferred: 0, status: 'running' })
+  items.set(init.taskId, { ...init, transferred: 0, status: 'queued' })
   notify()
 }
 
@@ -51,14 +51,21 @@ export function addTransfer(init: Omit<TransferItem, 'transferred' | 'status'>):
 export function removeTransfer(taskId: string): void {
   const item = items.get(taskId)
   if (!item) return
-  if (item.status === 'running' || item.status === 'paused') window.api.sftp.cancel(taskId)
+  if (item.status === 'queued' || item.status === 'running' || item.status === 'paused') {
+    window.api.sftp.cancel(taskId)
+  }
   items.delete(taskId)
   notify()
 }
 
 export function clearCompleted(sessionId: string): void {
   for (const [id, item] of items) {
-    if (item.sessionId === sessionId && item.status !== 'running' && item.status !== 'paused') {
+    if (
+      item.sessionId === sessionId &&
+      item.status !== 'queued' &&
+      item.status !== 'running' &&
+      item.status !== 'paused'
+    ) {
       items.delete(id)
     }
   }

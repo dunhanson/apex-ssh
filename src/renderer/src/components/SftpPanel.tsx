@@ -37,7 +37,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { getSettingsSnapshot } from '@/lib/settings'
+import { getSettingsSnapshot, useSettings } from '@/lib/settings'
 import { addTransfer, clearCompleted, getTransfer, removeTransfer, useTransfers, type TransferItem } from '@/lib/transfers'
 
 /**
@@ -84,7 +84,8 @@ function EntryIcon({ type }: { type: SftpEntry['type'] }) {
 
 export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
   const { t } = useTranslation()
-  const [mode, setMode] = useState<'panel' | 'split'>('panel')
+  const settings = useSettings()
+  const [mode, setMode] = useState<'panel' | 'split'>(settings.sftpPanelMode)
   const [height, setHeight] = useState(240)
   const [remotePath, setRemotePath] = useState<string | null>(null)
   const [remote, setRemote] = useState<SftpListResult | null>(null)
@@ -107,6 +108,10 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
   const [conflictAsk, setConflictAsk] = useState<{
     names: string[]
     resolve: (policy: ConflictPolicy | null) => void
+  } | null>(null)
+  const [uploadOverwriteAsk, setUploadOverwriteAsk] = useState<{
+    names: string[]
+    resolve: (confirmed: boolean) => void
   } | null>(null)
   const [deleteAsk, setDeleteAsk] = useState<SftpEntry[] | null>(null)
   const [localDeleteAsk, setLocalDeleteAsk] = useState<SftpEntry[] | null>(null)
@@ -171,6 +176,10 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
     }
   }, [mode, localPath, refreshLocal])
 
+  useEffect(() => {
+    setMode(settings.sftpPanelMode)
+  }, [settings.sftpPanelMode])
+
   const filtered = useMemo(() => {
     if (!remote) return []
     const kw = filter.trim().toLowerCase()
@@ -181,17 +190,38 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
   const watchTaskDone = useCallback((taskId: string, cb: () => void) => {
     const timer = setInterval(() => {
       const task = getTransfer(taskId)
-      if (!task || (task.status !== 'running' && task.status !== 'paused')) {
+      if (
+        !task ||
+        (task.status !== 'queued' && task.status !== 'running' && task.status !== 'paused')
+      ) {
         clearInterval(timer)
         cb()
       }
     }, 500)
   }, [])
 
+  const askUploadOverwrite = useCallback(
+    (names: string[]) =>
+      new Promise<boolean>((resolve) => {
+        setUploadOverwriteAsk({ names, resolve })
+      }),
+    []
+  )
+
   /** 发起上传任务（统一入口：按钮选择 / 拖拽 / 双栏箭头） */
   const startUpload = useCallback(
     async (localPaths: string[]) => {
       if (localPaths.length === 0 || !remotePath) return
+      if (getSettingsSnapshot().confirmUploadOverwrite) {
+        const listing = await window.api.sftp.list(sessionId, remotePath)
+        if (!listing.error) {
+          const existing = new Set(listing.entries.map((entry) => entry.name))
+          const conflicts = localPaths
+            .map((path) => path.split(/[\\/]/).pop() ?? path)
+            .filter((name) => existing.has(name))
+          if (conflicts.length > 0 && !(await askUploadOverwrite(conflicts))) return
+        }
+      }
       const taskId = crypto.randomUUID()
       const name =
         localPaths.length === 1
@@ -207,7 +237,7 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
       // 传输完成后文件才出现在目标目录：轮询任务终态后刷新
       watchTaskDone(taskId, () => remotePath && refreshRemote(remotePath))
     },
-    [sessionId, remotePath, refreshRemote, watchTaskDone]
+    [sessionId, remotePath, askUploadOverwrite, refreshRemote, watchTaskDone]
   )
 
   /** 发起批量下载任务（统一入口：快速下载 / 下载到… / 双栏箭头） */
@@ -253,9 +283,14 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
         const existing = new Set(listing.entries.map((e) => e.name))
         const conflicts = entries.filter((e) => existing.has(e.name)).map((e) => e.name)
         if (conflicts.length > 0) {
-          const chosen = await askConflict(conflicts)
-          if (!chosen) return
-          policy = chosen
+          const preferred = getSettingsSnapshot().downloadConflictPolicy
+          if (preferred === 'ask') {
+            const chosen = await askConflict(conflicts)
+            if (!chosen) return
+            policy = chosen
+          } else {
+            policy = preferred
+          }
         }
       }
       await startDownloadTask(items, policy, onDone)
@@ -425,6 +460,18 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
 
   const uploadSelectedLocal = () => {
     startUpload([...selLocal])
+    setSelLocal(new Set())
+    localAnchorRef.current = null
+  }
+
+  /** 双栏左侧双击：目录进入，文件按设置快速上传 */
+  const handleLocalEntryDoubleClick = (entry: SftpEntry) => {
+    if (entry.type === 'dir') {
+      refreshLocal(entry.path)
+      return
+    }
+    if (entry.type !== 'file' || !settings.doubleClickUpload) return
+    startUpload([entry.path])
     setSelLocal(new Set())
     localAnchorRef.current = null
   }
@@ -734,6 +781,9 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
             {/* 本地侧 */}
             <div className="flex-1 min-w-0 flex flex-col border-r border-white/[0.06]">
               <div className="h-9 shrink-0 flex items-center gap-1.5 px-2.5 border-b border-white/[0.04]">
+                <span className="w-10 shrink-0 text-center font-mono text-[10px] text-faint">
+                  {t('sftp.local')}
+                </span>
                 <button className="icon-btn" title={t('sftp.upLevel')} onClick={() => localPath && refreshLocal(parentOf(localPath.replace(/\\/g, '/')))}>
                   <ArrowUp className="size-3.5" />
                 </button>
@@ -761,7 +811,7 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
                           selected: selLocal.has(entry.path),
                           renaming: localRenaming === entry.path,
                           onClick: (e) => handleLocalSelect(entry, e),
-                          onDoubleClick: entry.type === 'dir' ? () => refreshLocal(entry.path) : undefined,
+                          onDoubleClick: () => handleLocalEntryDoubleClick(entry),
                           onContextMenu: () => handleLocalRowContextMenu(entry),
                           onRenameSubmit: (name) => submitLocalRename(entry, name),
                           onRenameCancel: () => setLocalRenaming(null)
@@ -829,6 +879,9 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
             {/* 远程侧 */}
             <div className="flex-1 min-w-0 flex flex-col border-l border-white/[0.06]">
               <div className="h-9 shrink-0 flex items-center gap-1.5 px-2.5 border-b border-white/[0.04]">
+                <span className="w-10 shrink-0 text-center font-mono text-[10px] text-faint">
+                  {t('sftp.remote')}
+                </span>
                 <button className="icon-btn" title={t('sftp.upLevel')} onClick={() => remotePath && refreshRemote(parentOf(remotePath))}>
                   <ArrowUp className="size-3.5" />
                 </button>
@@ -927,6 +980,50 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={uploadOverwriteAsk !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            uploadOverwriteAsk?.resolve(false)
+            setUploadOverwriteAsk(null)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('sftp.uploadConflictTitle')}</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <p className="font-mono text-[11px] text-dim leading-relaxed break-all">
+              {t('sftp.uploadConflictDesc', {
+                names: uploadOverwriteAsk?.names.join('、') ?? ''
+              })}
+            </p>
+          </DialogBody>
+          <DialogFooter className="justify-end">
+            <Button
+              size="sm"
+              onClick={() => {
+                uploadOverwriteAsk?.resolve(false)
+                setUploadOverwriteAsk(null)
+              }}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              size="sm"
+              variant="solid"
+              onClick={() => {
+                uploadOverwriteAsk?.resolve(true)
+                setUploadOverwriteAsk(null)
+              }}
+            >
+              {t('sftp.conflictOverwrite')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={localDeleteAsk !== null} onOpenChange={(open) => !open && setLocalDeleteAsk(null)}>
         <DialogContent>
           <DialogHeader>
@@ -957,7 +1054,18 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
 function TransferRow({ item }: { item: TransferItem }) {
   const { t } = useTranslation()
   const pct = item.total > 0 ? Math.min(100, Math.round((item.transferred / item.total) * 100)) : 0
-  const active = item.status === 'running' || item.status === 'paused'
+  const active =
+    item.status === 'queued' || item.status === 'running' || item.status === 'paused'
+  const statusText =
+    item.status === 'queued'
+      ? t('sftp.queued')
+      : item.status === 'done'
+        ? t('sftp.done')
+        : item.status === 'cancelled'
+          ? t('sftp.cancelled')
+          : item.status === 'error'
+            ? t('sftp.failed')
+            : `${pct}%`
   return (
     <div className="flex items-center gap-2 px-3 py-[4px] font-mono text-[11px]">
       {item.direction === 'up' ? (
@@ -981,8 +1089,8 @@ function TransferRow({ item }: { item: TransferItem }) {
           }}
         />
       </div>
-      <span className="w-[36px] text-right text-faint shrink-0">
-        {item.status === 'done' ? t('sftp.done') : item.status === 'cancelled' ? t('sftp.cancelled') : item.status === 'error' ? t('sftp.failed') : `${pct}%`}
+      <span className="w-[52px] text-right text-faint shrink-0">
+        {statusText}
       </span>
       {item.status === 'running' && (
         <button className="icon-btn !p-0.5" title={t('sftp.pause')} onClick={() => window.api.sftp.pause(item.taskId)}>

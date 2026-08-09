@@ -2,9 +2,10 @@ import type { Client, SFTPWrapper } from 'ssh2'
 import type { Stats } from 'ssh2'
 import { promises as fsp } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
-import type { WebContents } from 'electron'
+import { app, BrowserWindow, Notification, type WebContents } from 'electron'
 import type { ConflictPolicy, DownloadItem, SftpEntry, SftpListResult, TransferProgress, TransferStatus } from '@shared/types'
 import { IPC } from '@shared/types'
+import { getSettings } from './settings'
 import { getClient, getCurrentDirectory } from './ssh'
 
 /**
@@ -244,10 +245,18 @@ interface TransferTask {
   total: number
   paused: boolean
   cancelled: boolean
+  startedAt: number | null
   wc: WebContents
 }
 
+interface TransferJob {
+  task: TransferTask
+  run: () => Promise<void>
+}
+
 const tasks = new Map<string, TransferTask>()
+const pendingJobs: TransferJob[] = []
+let activeTransfers = 0
 
 function emitProgress(task: TransferTask, message?: string): void {
   if (task.wc.isDestroyed()) return
@@ -260,6 +269,79 @@ function emitProgress(task: TransferTask, message?: string): void {
     message
   }
   task.wc.send(IPC.SftpProgress, payload)
+}
+
+function showCompletionNotification(task: TransferTask): void {
+  const settings = getSettings()
+  if (!settings.notifyTransferComplete || !Notification.isSupported()) return
+  const duration = task.startedAt === null ? 0 : Date.now() - task.startedAt
+  const appFocused = BrowserWindow.getAllWindows().some((window) => window.isFocused())
+  if (appFocused && duration < 10_000) return
+  const locale = settings.language === 'system' ? app.getLocale() : settings.language
+  const zh = locale.toLowerCase().startsWith('zh')
+  const body =
+    task.direction === 'up'
+      ? zh
+        ? '上传完成'
+        : 'Upload complete'
+      : zh
+        ? '下载完成'
+        : 'Download complete'
+  new Notification({
+    title: 'Apex SSH',
+    body
+  }).show()
+}
+
+async function runTransferJob(job: TransferJob): Promise<void> {
+  const { task } = job
+  task.status = 'running'
+  task.startedAt = Date.now()
+  emitProgress(task)
+  let message: string | undefined
+  try {
+    await job.run()
+    if (task.status === 'running') task.status = 'done'
+  } catch (err) {
+    if (task.cancelled) {
+      task.status = 'cancelled'
+    } else {
+      task.status = 'error'
+      message = err instanceof Error ? err.message : String(err)
+    }
+  } finally {
+    activeTransfers = Math.max(0, activeTransfers - 1)
+    try {
+      emitProgress(task, message)
+      if (task.status === 'done') showCompletionNotification(task)
+    } catch {
+      // 通知或窗口销毁竞态不能阻塞后续排队任务。
+    } finally {
+      pumpTransferQueue()
+    }
+  }
+}
+
+function pumpTransferQueue(): void {
+  const limit = getSettings().maxConcurrentTransfers
+  while (activeTransfers < limit && pendingJobs.length > 0) {
+    const job = pendingJobs.shift()!
+    if (job.task.cancelled) continue
+    activeTransfers += 1
+    void runTransferJob(job)
+  }
+}
+
+function enqueueTransfer(task: TransferTask, run: () => Promise<void>): void {
+  tasks.set(task.taskId, task)
+  pendingJobs.push({ task, run })
+  emitProgress(task)
+  pumpTransferQueue()
+}
+
+/** 设置提高并发上限后立即尝试放行等待任务。 */
+export function refreshTransferQueue(): void {
+  pumpTransferQueue()
 }
 
 /** 暂停点：暂停时自旋等待，取消时抛错中断 */
@@ -292,7 +374,13 @@ export function cancelTransfer(taskId: string): void {
   if (!task) return
   task.cancelled = true
   task.paused = false
-  if (task.status === 'running' || task.status === 'paused') {
+  if (task.status === 'queued') {
+    const index = pendingJobs.findIndex((job) => job.task.taskId === taskId)
+    if (index >= 0) pendingJobs.splice(index, 1)
+    task.status = 'cancelled'
+    emitProgress(task)
+    pumpTransferQueue()
+  } else if (task.status === 'running' || task.status === 'paused') {
     task.status = 'cancelled'
     emitProgress(task)
   }
@@ -386,47 +474,38 @@ export async function startUpload(
   const client = getClient(sessionId)
   if (!client) return { error: '会话不存在或已断开' }
   let total = 0
-  for (const p of localPaths) total += await scanSize(p)
+  try {
+    for (const p of localPaths) total += await scanSize(p)
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) }
+  }
   const task: TransferTask = {
     taskId,
     sessionId,
     direction: 'up',
-    status: 'running',
+    status: 'queued',
     transferred: 0,
     total,
     paused: false,
     cancelled: false,
+    startedAt: null,
     wc
   }
-  tasks.set(taskId, task)
-  emitProgress(task)
 
-  ;(async () => {
-    const sftp = await getSftp(client).catch(() => null)
-    if (!sftp) {
-      task.status = 'error'
-      emitProgress(task, 'SFTP 通道打开失败')
-      return
-    }
+  enqueueTransfer(task, async () => {
+    const activeClient = getClient(sessionId)
+    if (!activeClient) throw new Error('会话不存在或已断开')
+    const sftp = await getSftp(activeClient).catch(() => null)
+    if (!sftp) throw new Error('SFTP 通道打开失败')
     try {
       for (const p of localPaths) {
         await checkpoint(task)
         await uploadPath(sftp, task, p, remoteDir)
       }
-      if (task.status === 'running') task.status = 'done'
-    } catch (err) {
-      if (task.cancelled) {
-        task.status = 'cancelled'
-      } else {
-        task.status = 'error'
-        emitProgress(task, err instanceof Error ? err.message : String(err))
-        return
-      }
     } finally {
       sftp.end()
     }
-    emitProgress(task)
-  })()
+  })
 
   return { total }
 }
@@ -542,7 +621,8 @@ export async function startDownload(
 ): Promise<{ total: number } | { error: string }> {
   const client = getClient(sessionId)
   if (!client) return { error: '会话不存在或已断开' }
-  const sftp = await getSftp(client)
+  const sftp = await getSftp(client).catch(() => null)
+  if (!sftp) return { error: 'SFTP 通道打开失败' }
   let total = 0
   try {
     for (const item of items) total += await scanRemoteSize(sftp, item.remotePath)
@@ -550,41 +630,35 @@ export async function startDownload(
     sftp.end()
     return { error: err instanceof Error ? err.message : String(err) }
   }
+  sftp.end()
 
   const task: TransferTask = {
     taskId,
     sessionId,
     direction: 'down',
-    status: 'running',
+    status: 'queued',
     transferred: 0,
     total,
     paused: false,
     cancelled: false,
+    startedAt: null,
     wc
   }
-  tasks.set(taskId, task)
-  emitProgress(task)
 
-  ;(async () => {
+  enqueueTransfer(task, async () => {
+    const activeClient = getClient(sessionId)
+    if (!activeClient) throw new Error('会话不存在或已断开')
+    const transferSftp = await getSftp(activeClient).catch(() => null)
+    if (!transferSftp) throw new Error('SFTP 通道打开失败')
     try {
       for (const item of items) {
         await checkpoint(task)
-        await downloadPath(sftp, task, item.remotePath, item.localPath, conflict)
-      }
-      if (task.status === 'running') task.status = 'done'
-    } catch (err) {
-      if (task.cancelled) {
-        task.status = 'cancelled'
-      } else {
-        task.status = 'error'
-        emitProgress(task, err instanceof Error ? err.message : String(err))
-        return
+        await downloadPath(transferSftp, task, item.remotePath, item.localPath, conflict)
       }
     } finally {
-      sftp.end()
+      transferSftp.end()
     }
-    emitProgress(task)
-  })()
+  })
 
   return { total }
 }

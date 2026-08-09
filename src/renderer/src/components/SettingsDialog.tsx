@@ -10,6 +10,7 @@ import {
   Info,
   MonitorCog,
   RefreshCw,
+  RotateCcw,
   Rocket,
   SquareTerminal,
   Upload,
@@ -832,27 +833,140 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
           </TabsContent>
 
           <TabsContent value="transfer">
-            <SettingsSection title={t('settings.transfer')} showTitle={false}>
-              <div className="max-w-[560px]">
-                <Label>{t('settings.downloadDir')}</Label>
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                  <div
-                    className="settings-control-surface min-w-0 h-9 flex items-center px-2.5 rounded-sm border font-mono text-[11px] text-faint"
-                    title={settings.downloadDir || undefined}
-                  >
-                    <span className="truncate">
-                      {settings.downloadDir || t('settings.downloadDirAsk')}
-                    </span>
+            <SettingsSection title={t('settings.transferSaveLocation')}>
+              <div className="flex max-w-[560px] flex-col gap-3">
+                <div>
+                  <Label>{t('settings.downloadDir')}</Label>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
+                    <div
+                      className="settings-control-surface min-w-0 h-9 flex items-center px-2.5 rounded-sm border font-mono text-[11px] text-faint"
+                      title={settings.downloadDir || undefined}
+                    >
+                      <span className="truncate">
+                        {settings.downloadDir || t('settings.downloadDirAsk')}
+                      </span>
+                    </div>
+                    <Button
+                      className="h-9 shrink-0"
+                      onClick={async () => {
+                        const dir = await window.api.dialog.pickDirectory()
+                        if (dir) patch({ downloadDir: dir })
+                      }}
+                    >
+                      {t('common.browse')}
+                    </Button>
+                    <Button
+                      size="icon"
+                      className="size-9 shrink-0"
+                      title={t('settings.downloadDirReset')}
+                      aria-label={t('settings.downloadDirReset')}
+                      disabled={!settings.downloadDir}
+                      onClick={() => patch({ downloadDir: '' })}
+                    >
+                      <RotateCcw />
+                    </Button>
                   </div>
-                  <Button
-                    className="h-9 shrink-0"
-                    onClick={async () => {
-                      const dir = await window.api.dialog.pickDirectory()
-                      if (dir) patch({ downloadDir: dir })
-                    }}
-                  >
-                    {t('common.browse')}
-                  </Button>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title={t('settings.transferFileConflict')}>
+              <div className="flex max-w-[560px] flex-col gap-3">
+                <div>
+                  <Label htmlFor="download-conflict-policy">{t('settings.downloadConflict')}</Label>
+                  <SettingSelect
+                    id="download-conflict-policy"
+                    value={settings.downloadConflictPolicy}
+                    options={[
+                      { value: 'ask', label: t('settings.conflictAsk') },
+                      { value: 'overwrite', label: t('settings.conflictOverwrite') },
+                      { value: 'skip', label: t('settings.conflictSkip') },
+                      { value: 'rename', label: t('settings.conflictRename') }
+                    ]}
+                    onChange={(downloadConflictPolicy) =>
+                      patch({
+                        downloadConflictPolicy:
+                          downloadConflictPolicy as AppSettings['downloadConflictPolicy']
+                      })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>{t('settings.uploadConflict')}</Label>
+                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-3">
+                    <div className="settings-control-title">
+                      {settings.confirmUploadOverwrite
+                        ? t('settings.confirmBeforeOverwrite')
+                        : t('settings.overwriteDirectly')}
+                    </div>
+                    <SettingToggle
+                      checked={settings.confirmUploadOverwrite}
+                      label={t('settings.uploadConflict')}
+                      onChange={(confirmUploadOverwrite) => patch({ confirmUploadOverwrite })}
+                    />
+                  </div>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title={t('settings.transferPanelSettings')}>
+              <div className="settings-form-grid">
+                <div>
+                  <Label htmlFor="sftp-panel-mode">{t('settings.panelMode')}</Label>
+                  <SettingSelect
+                    id="sftp-panel-mode"
+                    value={settings.sftpPanelMode}
+                    options={[
+                      { value: 'panel', label: t('settings.panelView') },
+                      { value: 'split', label: t('settings.splitView') }
+                    ]}
+                    onChange={(sftpPanelMode) =>
+                      patch({ sftpPanelMode: sftpPanelMode as AppSettings['sftpPanelMode'] })
+                    }
+                  />
+                </div>
+                <div>
+                  <Label>{t('settings.doubleClickUpload')}</Label>
+                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-3">
+                    <div className="settings-control-title">
+                      {settings.doubleClickUpload ? t('common.enabled') : t('common.disabled')}
+                    </div>
+                    <SettingToggle
+                      checked={settings.doubleClickUpload}
+                      label={t('settings.doubleClickUpload')}
+                      onChange={(doubleClickUpload) => patch({ doubleClickUpload })}
+                    />
+                  </div>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title={t('settings.transferQueue')}>
+              <div className="settings-form-grid">
+                <div>
+                  <Label htmlFor="max-concurrent-transfers">{t('settings.concurrentTasks')}</Label>
+                  <NumericSetting
+                    id="max-concurrent-transfers"
+                    value={settings.maxConcurrentTransfers}
+                    min={1}
+                    max={4}
+                    step={1}
+                    integer
+                    onChange={(maxConcurrentTransfers) => patch({ maxConcurrentTransfers })}
+                  />
+                </div>
+                <div>
+                  <Label>{t('settings.completionNotice')}</Label>
+                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-3">
+                    <div className="settings-control-title">
+                      {settings.notifyTransferComplete ? t('common.enabled') : t('common.disabled')}
+                    </div>
+                    <SettingToggle
+                      checked={settings.notifyTransferComplete}
+                      label={t('settings.completionNotice')}
+                      onChange={(notifyTransferComplete) => patch({ notifyTransferComplete })}
+                    />
+                  </div>
                 </div>
               </div>
             </SettingsSection>

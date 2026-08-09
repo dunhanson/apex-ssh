@@ -16,6 +16,12 @@ let current: AppSettings = {
   language: 'system',
   showSessionInfoBar: true,
   downloadDir: '',
+  downloadConflictPolicy: 'ask',
+  confirmUploadOverwrite: true,
+  sftpPanelMode: 'panel',
+  doubleClickUpload: true,
+  maxConcurrentTransfers: 2,
+  notifyTransferComplete: true,
   backupIncludeCredentials: true,
   backupPasswordSource: 'custom'
 }

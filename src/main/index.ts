@@ -441,9 +441,11 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.SettingsGet, () => settings.getSettings())
-  ipcMain.handle(IPC.SettingsSet, (_e, patch: Parameters<typeof settings.setSettings>[0]) =>
-    settings.setSettings(patch)
-  )
+  ipcMain.handle(IPC.SettingsSet, (_e, patch: Parameters<typeof settings.setSettings>[0]) => {
+    const next = settings.setSettings(patch)
+    sftp.refreshTransferQueue()
+    return next
+  })
 
   registerUpdaterIpc()
   registerCloudSyncIpc()

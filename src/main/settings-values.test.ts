@@ -13,7 +13,13 @@ describe('normalizeSettings', () => {
       cursorBlink: true,
       scrollOnInput: true,
       copyOnSelect: false,
-      confirmMultilinePaste: true
+      confirmMultilinePaste: true,
+      downloadConflictPolicy: 'ask',
+      confirmUploadOverwrite: true,
+      sftpPanelMode: 'panel',
+      doubleClickUpload: true,
+      maxConcurrentTransfers: 2,
+      notifyTransferComplete: true
     })
   })
 
@@ -42,7 +48,13 @@ describe('normalizeSettings', () => {
       cursorBlink: 'yes',
       scrollOnInput: 1,
       copyOnSelect: null,
-      confirmMultilinePaste: 'false'
+      confirmMultilinePaste: 'false',
+      downloadConflictPolicy: 'replace',
+      confirmUploadOverwrite: 'yes',
+      sftpPanelMode: 'columns',
+      doubleClickUpload: 'yes',
+      maxConcurrentTransfers: 99,
+      notifyTransferComplete: 1
     } as unknown as Partial<typeof DEFAULT_SETTINGS>
 
     expect(normalizeSettings(invalid)).toMatchObject({
@@ -51,7 +63,34 @@ describe('normalizeSettings', () => {
       cursorBlink: true,
       scrollOnInput: true,
       copyOnSelect: false,
-      confirmMultilinePaste: true
+      confirmMultilinePaste: true,
+      downloadConflictPolicy: 'ask',
+      confirmUploadOverwrite: true,
+      sftpPanelMode: 'panel',
+      doubleClickUpload: true,
+      maxConcurrentTransfers: 4,
+      notifyTransferComplete: true
+    })
+  })
+
+  it('保留合法的传输偏好并规范并发数量', () => {
+    expect(
+      normalizeSettings({
+        ...DEFAULT_SETTINGS,
+        downloadConflictPolicy: 'rename',
+        confirmUploadOverwrite: false,
+        sftpPanelMode: 'split',
+        doubleClickUpload: false,
+        maxConcurrentTransfers: 2.6,
+        notifyTransferComplete: false
+      })
+    ).toMatchObject({
+      downloadConflictPolicy: 'rename',
+      confirmUploadOverwrite: false,
+      sftpPanelMode: 'split',
+      doubleClickUpload: false,
+      maxConcurrentTransfers: 3,
+      notifyTransferComplete: false
     })
   })
 })

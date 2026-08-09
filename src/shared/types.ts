@@ -129,7 +129,7 @@ export interface SftpListResult {
 }
 
 /** 传输任务状态机 */
-export type TransferStatus = 'running' | 'paused' | 'done' | 'error' | 'cancelled'
+export type TransferStatus = 'queued' | 'running' | 'paused' | 'done' | 'error' | 'cancelled'
 
 /** 一个顶层下载项：远程路径 → 本地落点（文件为完整目标路径，目录为目标目录路径） */
 export interface DownloadItem {
@@ -192,6 +192,18 @@ export interface AppSettings {
   showSessionInfoBar: boolean
   /** 默认下载目录；空串表示每次询问（记住上次选择的目录） */
   downloadDir: string
+  /** 下载目标存在同名项时的默认处理方式 */
+  downloadConflictPolicy: 'ask' | ConflictPolicy
+  /** 上传顶层项目与远端同名时是否先确认 */
+  confirmUploadOverwrite: boolean
+  /** SFTP 面板打开时的默认布局 */
+  sftpPanelMode: 'panel' | 'split'
+  /** 双栏模式左侧双击本地文件时是否直接上传 */
+  doubleClickUpload: boolean
+  /** 同时运行的上传与下载任务数 */
+  maxConcurrentTransfers: number
+  /** 传输完成后是否允许发送系统通知 */
+  notifyTransferComplete: boolean
   /** 备份时是否默认包含登录凭证 */
   backupIncludeCredentials: boolean
   /** 加密备份默认使用的密码方式；只保存方式，不保存密码内容 */
