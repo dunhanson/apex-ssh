@@ -5,13 +5,19 @@ import {
   Copy,
   DatabaseBackup,
   Download,
+  Eraser,
   FolderDown,
+  FolderOpen,
   Info,
+  KeyRound,
   MonitorCog,
+  PlugZap,
   RefreshCw,
-  RotateCcw,
   Rocket,
+  RotateCcw,
+  Save,
   SquareTerminal,
+  Trash2,
   Upload,
   type LucideIcon
 } from 'lucide-react'
@@ -828,36 +834,32 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
               <div className="flex max-w-[560px] flex-col gap-3">
                 <div>
                   <Label>{t('settings.downloadDir')}</Label>
-                  <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
-                    <div
-                      className="settings-control-surface min-w-0 h-9 flex items-center px-2.5 rounded-sm border font-mono text-[11px] text-faint"
-                      title={settings.downloadDir || undefined}
-                    >
-                      <span className="truncate">
-                        {settings.downloadDir || t('settings.downloadDirAsk')}
-                      </span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-9 shrink-0"
-                      title={t('settings.downloadDirReset')}
-                      aria-label={t('settings.downloadDirReset')}
-                      disabled={!settings.downloadDir}
-                      onClick={() => patch({ downloadDir: '' })}
-                    >
-                      <RotateCcw />
-                    </Button>
+                  <div
+                    className="settings-control-surface flex h-9 min-w-0 items-center rounded-sm border px-2.5 font-mono text-[11px] text-faint"
+                    title={settings.downloadDir || undefined}
+                  >
+                    <span className="truncate">
+                      {settings.downloadDir || t('settings.downloadDirAsk')}
+                    </span>
                   </div>
-                  <div className="settings-backup-actions mt-2 grid gap-3" data-count="1">
+                  <div className="settings-backup-actions mt-2 grid gap-3">
                     <Button
-                      variant="ghost"
+                      variant="solid"
                       onClick={async () => {
                         const dir = await window.api.dialog.pickDirectory()
                         if (dir) patch({ downloadDir: dir })
                       }}
                     >
+                      <FolderOpen data-icon="inline-start" />
                       {t('settings.selectDirectory')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={!settings.downloadDir}
+                      onClick={() => patch({ downloadDir: '' })}
+                    >
+                      <RotateCcw data-icon="inline-start" />
+                      {t('settings.downloadDirReset')}
                     </Button>
                   </div>
                 </div>
@@ -1269,6 +1271,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     disabled={syncBusy}
                     onClick={() => void saveSyncConnection()}
                   >
+                    <Save data-icon="inline-start" />
                     {t('settings.syncSaveConnection')}
                   </Button>
                   <Button
@@ -1277,6 +1280,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     disabled={syncBusy}
                     onClick={() => void testSyncConnection()}
                   >
+                    <PlugZap data-icon="inline-start" />
                     {t('settings.syncTestConnection')}
                   </Button>
                 </div>
@@ -1316,16 +1320,15 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </ToggleGroup>
                 </div>
                 {syncKeySource === 'generate' ? (
-                  <div
-                    className="settings-backup-actions grid gap-3"
-                    data-count={syncGeneratedCopyAvailable ? '2' : '1'}
-                  >
-                    {syncGeneratedCopyAvailable && (
-                      <Button variant="ghost" disabled={syncBusy} onClick={() => void copyGeneratedSyncKey()}>
-                        <Copy data-icon="inline-start" />
-                        {t('settings.syncCopyKeyOnce')}
-                      </Button>
-                    )}
+                  <div className="settings-backup-actions grid gap-3">
+                    <Button
+                      variant="ghost"
+                      disabled={syncBusy || !syncGeneratedCopyAvailable}
+                      onClick={() => void copyGeneratedSyncKey()}
+                    >
+                      <Copy data-icon="inline-start" />
+                      {t('settings.syncCopyKeyOnce')}
+                    </Button>
                     <Button
                       variant="solid"
                       disabled={syncBusy}
@@ -1351,13 +1354,22 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                         placeholder={t('settings.syncKeyPlaceholder')}
                         onChange={(event) => setSyncKeyInput(event.currentTarget.value)}
                       />
-                      <div className="settings-backup-actions grid gap-3" data-count="1">
+                      <div className="settings-backup-actions grid gap-3">
                         <Button
                           variant="solid"
                           disabled={syncBusy || !syncKeyInput.trim()}
                           onClick={() => void submitSyncKey()}
                         >
+                          <KeyRound data-icon="inline-start" />
                           {t('settings.syncUseKey')}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          disabled={syncBusy || syncKeyInput.length === 0}
+                          onClick={() => setSyncKeyInput('')}
+                        >
+                          <Eraser data-icon="inline-start" />
+                          {t('settings.syncClearKey')}
                         </Button>
                       </div>
                     </div>
@@ -1414,6 +1426,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     disabled={syncBusy || !syncState?.configured}
                     onClick={() => setClearRemoteAsk(true)}
                   >
+                    <Trash2 data-icon="inline-start" />
                     {t('settings.syncClearRemote')}
                   </Button>
                 </div>
@@ -1506,7 +1519,11 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   data-count={updateStatus.state === 'downloaded' ? 2 : 1}
                 >
                   {updateStatus.state !== 'checking' && updateStatus.state !== 'downloading' && (
-                    <Button variant="ghost" className="h-9 w-full" onClick={() => void window.api.updater.check()}>
+                    <Button
+                      variant={updateStatus.state === 'downloaded' ? 'ghost' : 'solid'}
+                      className="h-9 w-full"
+                      onClick={() => void window.api.updater.check()}
+                    >
                       <RefreshCw data-icon="inline-start" />
                       {updateStatus.state === 'error'
                         ? t('settings.updateRetry')

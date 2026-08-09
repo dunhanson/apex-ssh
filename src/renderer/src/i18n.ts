@@ -293,7 +293,7 @@ const resources = {
         transferQueue: '传输队列',
         downloadDir: '默认下载目录',
         downloadDirAsk: '每次询问',
-        downloadDirReset: '重置下载目录',
+        downloadDirReset: '重置目录',
         selectDirectory: '选择目录',
         downloadConflict: '下载同名处理',
         uploadConflict: '上传同名处理',
@@ -383,6 +383,7 @@ const resources = {
         syncKeyInput: '密钥内容',
         syncKeyPlaceholder: '粘贴 24 位同步密钥',
         syncUseKey: '应用密钥',
+        syncClearKey: '清空密钥',
         syncKeySaved: '同步密钥已保存并通过校验',
         syncRegenerateConfirmTitle: '重置密钥',
         syncRegenerateConfirmDesc:
@@ -730,7 +731,7 @@ const resources = {
         transferQueue: 'Transfer queue',
         downloadDir: 'Default download folder',
         downloadDirAsk: 'Ask every time',
-        downloadDirReset: 'Reset download folder',
+        downloadDirReset: 'Reset folder',
         selectDirectory: 'Select folder',
         downloadConflict: 'When downloaded items already exist',
         uploadConflict: 'When uploaded items already exist',
@@ -820,6 +821,7 @@ const resources = {
         syncKeyInput: 'Enter the sync key from another device',
         syncKeyPlaceholder: 'Paste the 24-character sync key',
         syncUseKey: 'Use this key',
+        syncClearKey: 'Clear key',
         syncKeySaved: 'Sync key saved and verified',
         syncRegenerateConfirmTitle: 'Regenerate the sync key?',
         syncRegenerateConfirmDesc:
