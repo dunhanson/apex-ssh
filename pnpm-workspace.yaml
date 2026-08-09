@@ -23,6 +23,10 @@ peerDependencyRules:
 # 但其 package.json 声明 ^3.0.0（上游版本声明滞后），强制提升到 v5
 overrides:
   app-builder-lib>@electron/get: ^5.0.0
+  fast-uri: 3.1.5
+  brace-expansion: 5.0.9
+  js-yaml: 4.3.1
+  nanoid: 3.3.17
   # electron-builder 传递依赖的安全修复（GHSA-c2qf-rxjj-qqgw、GHSA-mh99-v99m-4gvg）
   brace-expansion@<1.1.17: ^1.1.17
   brace-expansion@>=2.0.0 <2.1.3: ^2.1.3
