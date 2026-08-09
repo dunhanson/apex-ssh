@@ -658,7 +658,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
 
         <div className="settings-workspace-content">
           <TabsContent value="terminal">
-            <SettingsSection title={t('settings.terminal')} showTitle={false}>
+            <SettingsSection title={t('settings.fontGroup')}>
               <div className="settings-form-grid">
                 <div>
                   <Label htmlFor="settings-font-size">{t('settings.fontSize')}</Label>
@@ -671,6 +671,11 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     onChange={(fontSize) => patch({ fontSize })}
                   />
                 </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title={t('settings.cursorGroup')}>
+              <div className="settings-form-grid">
                 <div>
                   <Label htmlFor="settings-cursor-style">{t('settings.cursorStyle')}</Label>
                   <SettingSelect
@@ -686,7 +691,30 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     }
                   />
                 </div>
-                <div className="settings-form-wide">
+                <div>
+                  <Label>{t('settings.cursorBlink')}</Label>
+                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-2.5">
+                    <span
+                      className={cn(
+                        'font-mono text-[12px]',
+                        settings.cursorBlink ? 'text-body' : 'text-faint'
+                      )}
+                    >
+                      {settings.cursorBlink ? t('common.enabled') : t('common.disabled')}
+                    </span>
+                    <SettingToggle
+                      checked={settings.cursorBlink}
+                      label={t('settings.cursorBlink')}
+                      onChange={(cursorBlink) => patch({ cursorBlink })}
+                    />
+                  </div>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title={t('settings.scrollGroup')}>
+              <div className="settings-form-grid">
+                <div>
                   <Label htmlFor="settings-scrollback">{t('settings.scrollback')}</Label>
                   <NumericSetting
                     id="settings-scrollback"
@@ -697,6 +725,67 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     integer
                     onChange={(scrollback) => patch({ scrollback })}
                   />
+                </div>
+                <div>
+                  <Label>{t('settings.scrollOnInput')}</Label>
+                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-2.5">
+                    <span
+                      className={cn(
+                        'font-mono text-[12px]',
+                        settings.scrollOnInput ? 'text-body' : 'text-faint'
+                      )}
+                    >
+                      {settings.scrollOnInput ? t('common.enabled') : t('common.disabled')}
+                    </span>
+                    <SettingToggle
+                      checked={settings.scrollOnInput}
+                      label={t('settings.scrollOnInput')}
+                      onChange={(scrollOnInput) => patch({ scrollOnInput })}
+                    />
+                  </div>
+                </div>
+              </div>
+            </SettingsSection>
+
+            <SettingsSection title={t('settings.interactionGroup')}>
+              <div className="settings-form-grid">
+                <div>
+                  <Label>{t('settings.copyOnSelect')}</Label>
+                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-2.5">
+                    <span
+                      className={cn(
+                        'font-mono text-[12px]',
+                        settings.copyOnSelect ? 'text-body' : 'text-faint'
+                      )}
+                    >
+                      {settings.copyOnSelect ? t('common.enabled') : t('common.disabled')}
+                    </span>
+                    <SettingToggle
+                      checked={settings.copyOnSelect}
+                      label={t('settings.copyOnSelect')}
+                      onChange={(copyOnSelect) => patch({ copyOnSelect })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label>{t('settings.confirmMultilinePaste')}</Label>
+                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-2.5">
+                    <span
+                      className={cn(
+                        'font-mono text-[12px]',
+                        settings.confirmMultilinePaste ? 'text-body' : 'text-faint'
+                      )}
+                    >
+                      {settings.confirmMultilinePaste
+                        ? t('common.enabled')
+                        : t('common.disabled')}
+                    </span>
+                    <SettingToggle
+                      checked={settings.confirmMultilinePaste}
+                      label={t('settings.confirmMultilinePaste')}
+                      onChange={(confirmMultilinePaste) => patch({ confirmMultilinePaste })}
+                    />
+                  </div>
                 </div>
               </div>
             </SettingsSection>

@@ -176,8 +176,16 @@ export interface AppSettings {
   /** 终端字号 px */
   fontSize: number
   cursorStyle: 'block' | 'underline' | 'bar'
+  /** 活动终端光标是否闪烁 */
+  cursorBlink: boolean
   /** 回滚行数 */
   scrollback: number
+  /** 用户输入时是否滚动到终端底部 */
+  scrollOnInput: boolean
+  /** 完成终端文本选择后是否自动复制 */
+  copyOnSelect: boolean
+  /** 粘贴包含换行的内容前是否要求确认 */
+  confirmMultilinePaste: boolean
   /** 界面语言：跟随系统 / 中文 / English */
   language: 'system' | 'zh-CN' | 'en-US'
   /** 是否显示会话信息栏（全部窗口同步） */

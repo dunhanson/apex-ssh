@@ -69,7 +69,11 @@ const resources = {
       terminalMenu: {
         copy: '复制',
         paste: '粘贴',
-        selectAll: '全选'
+        selectAll: '全选',
+        multilinePasteTitle: '粘贴多行内容',
+        pasteLines: '{{count}} 行',
+        pasteCharacters: '{{count}} 个字符',
+        pasteConfirm: '继续粘贴'
       },
       infoBar: {
         connecting: '连接中…',
@@ -247,13 +251,21 @@ const resources = {
       settings: {
         title: '设置',
         terminal: '终端',
-        terminalDescription: '字体、光标与终端历史记录',
+        terminalDescription: '字体、光标、滚动与交互偏好',
+        fontGroup: '字体',
+        cursorGroup: '光标',
+        scrollGroup: '滚动',
+        interactionGroup: '交互',
         fontSize: '字号',
         cursorStyle: '光标样式',
         cursorBlock: '方块',
         cursorUnderline: '下划线',
         cursorBar: '竖线',
+        cursorBlink: '光标闪烁',
         scrollback: '回滚行数',
+        scrollOnInput: '输入时滚至底部',
+        copyOnSelect: '选中即复制',
+        confirmMultilinePaste: '多行粘贴确认',
         interface: '界面',
         interfaceDescription: '语言与工作区显示方式',
         language: '语言',
@@ -461,7 +473,11 @@ const resources = {
       terminalMenu: {
         copy: 'Copy',
         paste: 'Paste',
-        selectAll: 'Select all'
+        selectAll: 'Select all',
+        multilinePasteTitle: 'Paste multiple lines',
+        pasteLines: '{{count}} lines',
+        pasteCharacters: '{{count}} characters',
+        pasteConfirm: 'Paste anyway'
       },
       infoBar: {
         connecting: 'Connecting…',
@@ -639,13 +655,21 @@ const resources = {
       settings: {
         title: 'Settings',
         terminal: 'Terminal',
-        terminalDescription: 'Font, cursor, and terminal history',
+        terminalDescription: 'Font, cursor, scrolling, and interaction',
+        fontGroup: 'Font',
+        cursorGroup: 'Cursor',
+        scrollGroup: 'Scrolling',
+        interactionGroup: 'Interaction',
         fontSize: 'Font size',
         cursorStyle: 'Cursor style',
         cursorBlock: 'Block',
         cursorUnderline: 'Underline',
         cursorBar: 'Bar',
+        cursorBlink: 'Blinking cursor',
         scrollback: 'Scrollback lines',
+        scrollOnInput: 'Scroll to bottom on input',
+        copyOnSelect: 'Copy on selection',
+        confirmMultilinePaste: 'Confirm multiline paste',
         interface: 'Interface',
         interfaceDescription: 'Language and workspace presentation',
         language: 'Language',
