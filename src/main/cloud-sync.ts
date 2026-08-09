@@ -1,6 +1,6 @@
 import Store from 'electron-store'
 import { BrowserWindow, clipboard, ipcMain, safeStorage } from 'electron'
-import { createHmac } from 'node:crypto'
+import { scryptSync } from 'node:crypto'
 import type {
   CloudSyncConnectionInput,
   CloudSyncConnectionView,
@@ -243,11 +243,13 @@ function sortValue(value: unknown): unknown {
   return value
 }
 
-/** 使用同步密钥生成规范化业务数据的 HMAC，作为本地变更检测的依据。 */
+/** 使用同步密钥和高成本 KDF 生成规范化业务数据摘要，作为本地变更检测的依据。 */
 function hashRecordData(data: unknown, syncKey: string): string {
-  // HMAC 使用同步密钥作为密钥，摘要只保存在本地 shadow 状态，不是密码存储哈希。
-  // codeql[js/insufficient-password-hash]
-  return createHmac('sha256', syncKey).update(JSON.stringify(sortValue(data))).digest('hex')
+  return scryptSync(JSON.stringify(sortValue(data)), syncKey, 32, {
+    N: 16_384,
+    r: 8,
+    p: 1
+  }).toString('hex')
 }
 
 interface CollectedRecord {
