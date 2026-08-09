@@ -17,7 +17,7 @@ let current: AppSettings = {
   showSessionInfoBar: true,
   downloadDir: '',
   downloadConflictPolicy: 'ask',
-  confirmUploadOverwrite: true,
+  uploadConflictPolicy: 'ask',
   sftpPanelMode: 'panel',
   doubleClickUpload: true,
   maxConcurrentTransfers: 2,

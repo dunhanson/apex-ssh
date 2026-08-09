@@ -22,22 +22,31 @@ afterAll(() => {
   vi.unstubAllGlobals()
 })
 
-describe('上传同名确认文案', () => {
+describe('同名项目逐项确认文案', () => {
   it('在中文 sftp 命名空间中可正常解析', () => {
     expect(i18n.getResource('zh-CN', 'translation', 'sftp.uploadConflictTitle')).toBe(
-      '覆盖远端同名项目？'
+      '远端项目已存在'
     )
-    expect(i18n.t('sftp.uploadConflictDesc', { lng: 'zh-CN', names: 'demo.txt' })).toBe(
-      '远端目录已存在同名项目：demo.txt'
+    expect(i18n.t('sftp.uploadConflictDesc', { lng: 'zh-CN', name: 'demo.txt' })).toBe(
+      '远端已存在同名项目：demo.txt'
     )
+    expect(i18n.t('sftp.applyAll', { lng: 'zh-CN' })).toBe('应用所有')
   })
 
   it('在英文 sftp 命名空间中可正常解析', () => {
     expect(i18n.getResource('en-US', 'translation', 'sftp.uploadConflictTitle')).toBe(
-      'Overwrite remote items?'
+      'Remote item already exists'
     )
-    expect(i18n.t('sftp.uploadConflictDesc', { lng: 'en-US', names: 'demo.txt' })).toBe(
-      'Items with the same name already exist remotely: demo.txt'
+    expect(i18n.t('sftp.uploadConflictDesc', { lng: 'en-US', name: 'demo.txt' })).toBe(
+      'An item with the same name already exists remotely: demo.txt'
     )
+    expect(i18n.t('sftp.applyAll', { lng: 'en-US' })).toBe('Apply to all')
+  })
+})
+
+describe('关于设置分组文案', () => {
+  it('提供中英文应用信息标题', () => {
+    expect(i18n.t('settings.appInfo', { lng: 'zh-CN' })).toBe('应用信息')
+    expect(i18n.t('settings.appInfo', { lng: 'en-US' })).toBe('Application information')
   })
 })

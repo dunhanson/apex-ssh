@@ -12,7 +12,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showSessionInfoBar: true,
   downloadDir: '',
   downloadConflictPolicy: 'ask',
-  confirmUploadOverwrite: true,
+  uploadConflictPolicy: 'ask',
   sftpPanelMode: 'panel',
   doubleClickUpload: true,
   maxConcurrentTransfers: 2,
@@ -42,13 +42,20 @@ export function normalizeSettings(candidate: Partial<AppSettings>): AppSettings 
     candidate.language === 'en-US'
       ? candidate.language
       : DEFAULT_SETTINGS.language
-  const downloadConflictPolicy =
-    candidate.downloadConflictPolicy === 'ask' ||
-    candidate.downloadConflictPolicy === 'overwrite' ||
-    candidate.downloadConflictPolicy === 'skip' ||
-    candidate.downloadConflictPolicy === 'rename'
-      ? candidate.downloadConflictPolicy
-      : DEFAULT_SETTINGS.downloadConflictPolicy
+  const isConflictPolicy = (value: unknown): value is AppSettings['downloadConflictPolicy'] =>
+    value === 'ask' || value === 'overwrite' || value === 'skip' || value === 'rename'
+  const downloadConflictPolicy = isConflictPolicy(candidate.downloadConflictPolicy)
+    ? candidate.downloadConflictPolicy
+    : DEFAULT_SETTINGS.downloadConflictPolicy
+  const legacyConfirmUploadOverwrite = (candidate as { confirmUploadOverwrite?: unknown })
+    .confirmUploadOverwrite
+  const uploadConflictPolicy = isConflictPolicy(candidate.uploadConflictPolicy)
+    ? candidate.uploadConflictPolicy
+    : typeof legacyConfirmUploadOverwrite === 'boolean'
+      ? legacyConfirmUploadOverwrite
+        ? 'ask'
+        : 'overwrite'
+      : DEFAULT_SETTINGS.uploadConflictPolicy
   const maxConcurrentTransfers =
     typeof candidate.maxConcurrentTransfers === 'number' &&
     Number.isFinite(candidate.maxConcurrentTransfers)
@@ -87,10 +94,7 @@ export function normalizeSettings(candidate: Partial<AppSettings>): AppSettings 
     downloadDir:
       typeof candidate.downloadDir === 'string' ? candidate.downloadDir : DEFAULT_SETTINGS.downloadDir,
     downloadConflictPolicy,
-    confirmUploadOverwrite:
-      typeof candidate.confirmUploadOverwrite === 'boolean'
-        ? candidate.confirmUploadOverwrite
-        : DEFAULT_SETTINGS.confirmUploadOverwrite,
+    uploadConflictPolicy,
     sftpPanelMode,
     doubleClickUpload:
       typeof candidate.doubleClickUpload === 'boolean'

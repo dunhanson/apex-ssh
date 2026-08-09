@@ -871,7 +871,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
             </SettingsSection>
 
             <SettingsSection title={t('settings.transferFileConflict')}>
-              <div className="flex max-w-[560px] flex-col gap-3">
+              <div className="settings-form-grid">
                 <div>
                   <Label htmlFor="download-conflict-policy">{t('settings.downloadConflict')}</Label>
                   <SettingSelect
@@ -892,19 +892,23 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   />
                 </div>
                 <div>
-                  <Label>{t('settings.uploadConflict')}</Label>
-                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-3">
-                    <div className="settings-control-title">
-                      {settings.confirmUploadOverwrite
-                        ? t('settings.confirmBeforeOverwrite')
-                        : t('settings.overwriteDirectly')}
-                    </div>
-                    <SettingToggle
-                      checked={settings.confirmUploadOverwrite}
-                      label={t('settings.uploadConflict')}
-                      onChange={(confirmUploadOverwrite) => patch({ confirmUploadOverwrite })}
-                    />
-                  </div>
+                  <Label htmlFor="upload-conflict-policy">{t('settings.uploadConflict')}</Label>
+                  <SettingSelect
+                    id="upload-conflict-policy"
+                    value={settings.uploadConflictPolicy}
+                    options={[
+                      { value: 'ask', label: t('settings.conflictAsk') },
+                      { value: 'overwrite', label: t('settings.conflictOverwrite') },
+                      { value: 'skip', label: t('settings.conflictSkip') },
+                      { value: 'rename', label: t('settings.conflictRename') }
+                    ]}
+                    onChange={(uploadConflictPolicy) =>
+                      patch({
+                        uploadConflictPolicy:
+                          uploadConflictPolicy as AppSettings['uploadConflictPolicy']
+                      })
+                    }
+                  />
                 </div>
               </div>
             </SettingsSection>
@@ -1456,7 +1460,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
           </TabsContent>
 
           <TabsContent value="about">
-            <SettingsSection title={t('settings.about')} showTitle={false}>
+            <SettingsSection title={t('settings.appInfo')}>
               <div className="settings-control-surface flex min-h-14 max-w-[560px] items-center gap-3 rounded-sm border px-3">
                 <img src={logoUrl} alt="" className="size-7 shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -1469,55 +1473,46 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   {t('settings.version')} {updateStatus?.currentVersion ?? '…'}
                 </div>
               </div>
+            </SettingsSection>
 
-              <div className="settings-control-surface flex max-w-[560px] flex-col gap-2.5 rounded-sm border px-3 py-3">
-                <div className="settings-section-title">
-                  {t('settings.update')}
-                </div>
-                <div className="font-mono text-[11px] leading-4 text-dim break-all">
-                  {updateStatusText()}
-                </div>
-                {updateStatus?.state === 'downloading' && (
-                  <div className="h-1 w-full overflow-hidden rounded-full bg-elevated">
-                    <div
-                      className="h-full bg-white/25 transition-[width]"
-                      style={{ width: `${updateStatus.progress ?? 0}%` }}
-                    />
-                  </div>
-                )}
-                {updateStatus?.supported && updateStatus.state !== 'installing' && (
+            <SettingsSection title={t('settings.update')} description={updateStatusText()}>
+              {updateStatus?.state === 'downloading' && (
+                <div className="h-1 w-full overflow-hidden rounded-full bg-elevated">
                   <div
-                    className="settings-update-actions grid w-full gap-2"
-                    data-count={updateStatus.state === 'downloaded' ? 2 : 1}
-                  >
-                    {updateStatus.state !== 'checking' && updateStatus.state !== 'downloading' && (
-                      <Button
-                        className="h-9 w-full"
-                        onClick={() => void window.api.updater.check()}
-                      >
-                        <RefreshCw data-icon="inline-start" />
-                        {updateStatus.state === 'error'
-                          ? t('settings.updateRetry')
-                          : t('settings.checkUpdate')}
-                      </Button>
-                    )}
-                    {updateStatus.state === 'downloaded' && (
-                      <Button
-                        className="h-9 w-full"
-                        variant="solid"
-                        onClick={() => {
-                          // 存在活动 SSH 会话时必须先确认会断开，再允许立即安装
-                          if (activeSessions > 0) setRestartAsk(true)
-                          else void window.api.updater.restartAndInstall()
-                        }}
-                      >
-                        <Rocket data-icon="inline-start" />
-                        {t('settings.restartNow')}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
+                    className="h-full bg-white/25 transition-[width]"
+                    style={{ width: `${updateStatus.progress ?? 0}%` }}
+                  />
+                </div>
+              )}
+              {updateStatus?.supported && updateStatus.state !== 'installing' && (
+                <div
+                  className="settings-update-actions grid w-full gap-2"
+                  data-count={updateStatus.state === 'downloaded' ? 2 : 1}
+                >
+                  {updateStatus.state !== 'checking' && updateStatus.state !== 'downloading' && (
+                    <Button className="h-9 w-full" onClick={() => void window.api.updater.check()}>
+                      <RefreshCw data-icon="inline-start" />
+                      {updateStatus.state === 'error'
+                        ? t('settings.updateRetry')
+                        : t('settings.checkUpdate')}
+                    </Button>
+                  )}
+                  {updateStatus.state === 'downloaded' && (
+                    <Button
+                      className="h-9 w-full"
+                      variant="solid"
+                      onClick={() => {
+                        // 存在活动 SSH 会话时必须先确认会断开，再允许立即安装
+                        if (activeSessions > 0) setRestartAsk(true)
+                        else void window.api.updater.restartAndInstall()
+                      }}
+                    >
+                      <Rocket data-icon="inline-start" />
+                      {t('settings.restartNow')}
+                    </Button>
+                  )}
+                </div>
+              )}
             </SettingsSection>
 
             {/* 立即重启更新确认：活动 SSH 会话将断开 */}

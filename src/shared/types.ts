@@ -135,10 +135,21 @@ export type TransferStatus = 'queued' | 'running' | 'paused' | 'done' | 'error' 
 export interface DownloadItem {
   remotePath: string
   localPath: string
+  /** 当前顶层项目的冲突策略；未提供时使用任务默认策略 */
+  conflict?: ConflictPolicy
 }
 
-/** 本地已存在同名目标时的处理策略（对整个任务生效） */
+/** 已存在同名目标时的实际处理策略 */
 export type ConflictPolicy = 'overwrite' | 'skip' | 'rename'
+
+/** 设置中的同名处理策略；ask 表示逐项询问 */
+export type TransferConflictPolicy = 'ask' | ConflictPolicy
+
+/** 一个顶层上传项；remoteName 用于自动重命名后的远端名称 */
+export interface UploadItem {
+  localPath: string
+  remoteName?: string
+}
 
 /** 主 → 渲染：传输进度事件 */
 export interface TransferProgress {
@@ -192,10 +203,10 @@ export interface AppSettings {
   showSessionInfoBar: boolean
   /** 默认下载目录；空串表示每次询问（记住上次选择的目录） */
   downloadDir: string
-  /** 下载目标存在同名项时的默认处理方式 */
-  downloadConflictPolicy: 'ask' | ConflictPolicy
-  /** 上传顶层项目与远端同名时是否先确认 */
-  confirmUploadOverwrite: boolean
+  /** 下载目标存在同名项时的默认处理策略 */
+  downloadConflictPolicy: TransferConflictPolicy
+  /** 上传顶层项目与远端同名时的默认处理策略 */
+  uploadConflictPolicy: TransferConflictPolicy
   /** SFTP 面板打开时的默认布局 */
   sftpPanelMode: 'panel' | 'split'
   /** 双栏模式左侧双击本地文件时是否直接上传 */
@@ -476,7 +487,7 @@ export interface RendererApi {
     upload: (
       sessionId: string,
       taskId: string,
-      localPaths: string[],
+      items: UploadItem[],
       remoteDir: string
     ) => Promise<{ total: number } | { error: string }>
     /** 批量下载远程文件/目录（含嵌套）到本地，返回总字节数或错误 */

@@ -13,6 +13,7 @@ import type {
   SessionDataEvent,
   SessionStatusEvent,
   SftpListResult,
+  UploadItem,
   SshConfigEntry,
   TermSize,
   TransferProgress,
@@ -107,8 +108,8 @@ const api: RendererApi = {
       ipcRenderer.invoke(IPC.SftpRename, sessionId, oldPath, newPath),
     remove: (sessionId: string, paths: string[]): Promise<string | null> =>
       ipcRenderer.invoke(IPC.SftpRemove, sessionId, paths),
-    upload: (sessionId: string, taskId: string, localPaths: string[], remoteDir: string) =>
-      ipcRenderer.invoke(IPC.SftpUpload, sessionId, taskId, localPaths, remoteDir),
+    upload: (sessionId: string, taskId: string, items: UploadItem[], remoteDir: string) =>
+      ipcRenderer.invoke(IPC.SftpUpload, sessionId, taskId, items, remoteDir),
     download: (sessionId: string, taskId: string, items: DownloadItem[], conflict: ConflictPolicy) =>
       ipcRenderer.invoke(IPC.SftpDownload, sessionId, taskId, items, conflict),
     pickDownloadPath: (sessionId: string, suggestedName: string): Promise<string | null> =>

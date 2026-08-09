@@ -2,7 +2,7 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain } from 'electron'
 import { promises as fsp } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join, parse, resolve } from 'node:path'
-import type { ConflictPolicy, DetachedSessionInfo, DownloadItem, HostConfig, HostInput, SftpEntry, SftpListResult, TermSize } from '@shared/types'
+import type { ConflictPolicy, DetachedSessionInfo, DownloadItem, HostConfig, HostInput, SftpEntry, SftpListResult, TermSize, UploadItem } from '@shared/types'
 import { IPC } from '@shared/types'
 import {
   addHost,
@@ -365,8 +365,8 @@ function registerIpc(): void {
     sftp.rename(sessionId, oldPath, newPath)
   )
   ipcMain.handle(IPC.SftpRemove, (_e, sessionId: string, paths: string[]) => sftp.remove(sessionId, paths))
-  ipcMain.handle(IPC.SftpUpload, (e, sessionId: string, taskId: string, localPaths: string[], remoteDir: string) =>
-    sftp.startUpload(e.sender, sessionId, taskId, localPaths, remoteDir)
+  ipcMain.handle(IPC.SftpUpload, (e, sessionId: string, taskId: string, items: UploadItem[], remoteDir: string) =>
+    sftp.startUpload(e.sender, sessionId, taskId, items, remoteDir)
   )
   ipcMain.handle(IPC.SftpDownload, (e, sessionId: string, taskId: string, items: DownloadItem[], conflict: ConflictPolicy) =>
     sftp.startDownload(e.sender, sessionId, taskId, items, conflict)

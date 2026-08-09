@@ -15,7 +15,7 @@ describe('normalizeSettings', () => {
       copyOnSelect: false,
       confirmMultilinePaste: true,
       downloadConflictPolicy: 'ask',
-      confirmUploadOverwrite: true,
+      uploadConflictPolicy: 'ask',
       sftpPanelMode: 'panel',
       doubleClickUpload: true,
       maxConcurrentTransfers: 2,
@@ -50,7 +50,7 @@ describe('normalizeSettings', () => {
       copyOnSelect: null,
       confirmMultilinePaste: 'false',
       downloadConflictPolicy: 'replace',
-      confirmUploadOverwrite: 'yes',
+      uploadConflictPolicy: 'replace',
       sftpPanelMode: 'columns',
       doubleClickUpload: 'yes',
       maxConcurrentTransfers: 99,
@@ -65,7 +65,7 @@ describe('normalizeSettings', () => {
       copyOnSelect: false,
       confirmMultilinePaste: true,
       downloadConflictPolicy: 'ask',
-      confirmUploadOverwrite: true,
+      uploadConflictPolicy: 'ask',
       sftpPanelMode: 'panel',
       doubleClickUpload: true,
       maxConcurrentTransfers: 4,
@@ -78,7 +78,7 @@ describe('normalizeSettings', () => {
       normalizeSettings({
         ...DEFAULT_SETTINGS,
         downloadConflictPolicy: 'rename',
-        confirmUploadOverwrite: false,
+        uploadConflictPolicy: 'skip',
         sftpPanelMode: 'split',
         doubleClickUpload: false,
         maxConcurrentTransfers: 2.6,
@@ -86,11 +86,19 @@ describe('normalizeSettings', () => {
       })
     ).toMatchObject({
       downloadConflictPolicy: 'rename',
-      confirmUploadOverwrite: false,
+      uploadConflictPolicy: 'skip',
       sftpPanelMode: 'split',
       doubleClickUpload: false,
       maxConcurrentTransfers: 3,
       notifyTransferComplete: false
     })
+  })
+
+  it('迁移旧版上传覆盖确认布尔值', () => {
+    const enabled = { ...DEFAULT_SETTINGS, uploadConflictPolicy: undefined, confirmUploadOverwrite: true }
+    const disabled = { ...DEFAULT_SETTINGS, uploadConflictPolicy: undefined, confirmUploadOverwrite: false }
+
+    expect(normalizeSettings(enabled as unknown as Partial<typeof DEFAULT_SETTINGS>).uploadConflictPolicy).toBe('ask')
+    expect(normalizeSettings(disabled as unknown as Partial<typeof DEFAULT_SETTINGS>).uploadConflictPolicy).toBe('overwrite')
   })
 })

@@ -3,7 +3,7 @@ import type { Stats } from 'ssh2'
 import { promises as fsp } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
 import { app, BrowserWindow, Notification, type WebContents } from 'electron'
-import type { ConflictPolicy, DownloadItem, SftpEntry, SftpListResult, TransferProgress, TransferStatus } from '@shared/types'
+import type { ConflictPolicy, DownloadItem, SftpEntry, SftpListResult, TransferProgress, TransferStatus, UploadItem } from '@shared/types'
 import { IPC } from '@shared/types'
 import { getSettings } from './settings'
 import { getClient, getCurrentDirectory } from './ssh'
@@ -434,10 +434,11 @@ async function uploadPath(
   sftp: SFTPWrapper,
   task: TransferTask,
   localPath: string,
-  remoteDir: string
+  remoteDir: string,
+  remoteName?: string
 ): Promise<void> {
   const stat = await fsp.stat(localPath)
-  const name = basename(localPath)
+  const name = remoteName ?? basename(localPath)
   const remotePath = remoteDir === '/' ? `/${name}` : `${remoteDir}/${name}`
   if (stat.isDirectory()) {
     await sftpMkdir(sftp, remotePath).catch(() => {
@@ -468,14 +469,14 @@ export async function startUpload(
   wc: WebContents,
   sessionId: string,
   taskId: string,
-  localPaths: string[],
+  items: UploadItem[],
   remoteDir: string
 ): Promise<{ total: number } | { error: string }> {
   const client = getClient(sessionId)
   if (!client) return { error: '会话不存在或已断开' }
   let total = 0
   try {
-    for (const p of localPaths) total += await scanSize(p)
+    for (const item of items) total += await scanSize(item.localPath)
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) }
   }
@@ -498,9 +499,9 @@ export async function startUpload(
     const sftp = await getSftp(activeClient).catch(() => null)
     if (!sftp) throw new Error('SFTP 通道打开失败')
     try {
-      for (const p of localPaths) {
+      for (const item of items) {
         await checkpoint(task)
-        await uploadPath(sftp, task, p, remoteDir)
+        await uploadPath(sftp, task, item.localPath, remoteDir, item.remoteName)
       }
     } finally {
       sftp.end()
@@ -653,7 +654,13 @@ export async function startDownload(
     try {
       for (const item of items) {
         await checkpoint(task)
-        await downloadPath(transferSftp, task, item.remotePath, item.localPath, conflict)
+        await downloadPath(
+          transferSftp,
+          task,
+          item.remotePath,
+          item.localPath,
+          item.conflict ?? conflict
+        )
       }
     } finally {
       transferSftp.end()

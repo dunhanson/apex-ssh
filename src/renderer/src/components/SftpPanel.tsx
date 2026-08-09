@@ -19,7 +19,7 @@ import {
   Upload,
   X
 } from 'lucide-react'
-import type { ConflictPolicy, DownloadItem, SftpEntry, SftpListResult } from '@shared/types'
+import type { ConflictPolicy, DownloadItem, SftpEntry, SftpListResult, UploadItem } from '@shared/types'
 import { cn } from '@/lib/utils'
 import {
   ContextMenu,
@@ -37,6 +37,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { getSettingsSnapshot, useSettings } from '@/lib/settings'
 import { addTransfer, clearCompleted, getTransfer, removeTransfer, useTransfers, type TransferItem } from '@/lib/transfers'
 
@@ -46,7 +47,7 @@ import { addTransfer, clearCompleted, getTransfer, removeTransfer, useTransfers,
  * 面板高度 120px–视口 80% 可拖拽；本地文件拖入远程区即上传（含嵌套目录）；底部为统一传输队列。
  * 远程列表为标准多选（单击选中 / Ctrl 切换 / Shift 范围），双击目录进入、双击文件下载；
  * 右键菜单提供下载（到默认目录）/ 下载到… / 重命名 / 删除 / 复制路径，批量下载合并为单任务，
- * 本地同名冲突弹窗选择覆盖 / 跳过 / 自动重命名（对整个任务生效）。
+ * 上传与下载同名冲突支持逐项确认，并可把覆盖或跳过应用到本次批量任务的其余冲突。
  */
 interface SftpPanelProps {
   sessionId: string
@@ -74,6 +75,23 @@ const joinLocal = (dir: string, name: string): string => `${dir.replace(/[\\/]+$
 const parentOf = (path: string): string => {
   const i = path.lastIndexOf('/')
   return i <= 0 ? '/' : path.slice(0, i)
+}
+
+const uniqueRemoteName = (name: string, occupied: Set<string>): string => {
+  const dot = name.lastIndexOf('.')
+  const hasExtension = dot > 0
+  const stem = hasExtension ? name.slice(0, dot) : name
+  const extension = hasExtension ? name.slice(dot) : ''
+  for (let index = 1; index < 1000; index += 1) {
+    const candidate = `${stem} (${index})${extension}`
+    if (!occupied.has(candidate)) return candidate
+  }
+  return `${stem} (${crypto.randomUUID().slice(0, 8)})${extension}`
+}
+
+type ConflictDecision = {
+  policy: 'overwrite' | 'skip'
+  applyAll: boolean
 }
 
 function EntryIcon({ type }: { type: SftpEntry['type'] }) {
@@ -104,15 +122,13 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
   // 右键菜单目标（null = 空白区菜单）
   const [menuEntry, setMenuEntry] = useState<SftpEntry | null>(null)
   const [localMenuEntry, setLocalMenuEntry] = useState<SftpEntry | null>(null)
-  // 冲突策略询问与删除确认（Promise 化，挂起下载流程等待用户选择）
+  // 冲突策略询问与删除确认（Promise 化，挂起传输流程等待用户选择）
   const [conflictAsk, setConflictAsk] = useState<{
-    names: string[]
-    resolve: (policy: ConflictPolicy | null) => void
+    direction: 'download' | 'upload'
+    name: string
+    resolve: (decision: ConflictDecision | null) => void
   } | null>(null)
-  const [uploadOverwriteAsk, setUploadOverwriteAsk] = useState<{
-    names: string[]
-    resolve: (confirmed: boolean) => void
-  } | null>(null)
+  const [applyConflictToAll, setApplyConflictToAll] = useState(false)
   const [deleteAsk, setDeleteAsk] = useState<SftpEntry[] | null>(null)
   const [localDeleteAsk, setLocalDeleteAsk] = useState<SftpEntry[] | null>(null)
   const transfers = useTransfers(sessionId)
@@ -200,35 +216,77 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
     }, 500)
   }, [])
 
-  const askUploadOverwrite = useCallback(
-    (names: string[]) =>
-      new Promise<boolean>((resolve) => {
-        setUploadOverwriteAsk({ names, resolve })
+  const askConflict = useCallback(
+    (direction: 'download' | 'upload', name: string) =>
+      new Promise<ConflictDecision | null>((resolve) => {
+        setApplyConflictToAll(false)
+        setConflictAsk({ direction, name, resolve })
       }),
     []
   )
+
+  const answerConflict = (policy: 'overwrite' | 'skip') => {
+    conflictAsk?.resolve({ policy, applyAll: applyConflictToAll })
+    setConflictAsk(null)
+    setApplyConflictToAll(false)
+  }
+
+  const cancelConflict = () => {
+    conflictAsk?.resolve(null)
+    setConflictAsk(null)
+    setApplyConflictToAll(false)
+  }
 
   /** 发起上传任务（统一入口：按钮选择 / 拖拽 / 双栏箭头） */
   const startUpload = useCallback(
     async (localPaths: string[]) => {
       if (localPaths.length === 0 || !remotePath) return
-      if (getSettingsSnapshot().confirmUploadOverwrite) {
-        const listing = await window.api.sftp.list(sessionId, remotePath)
-        if (!listing.error) {
-          const existing = new Set(listing.entries.map((entry) => entry.name))
-          const conflicts = localPaths
-            .map((path) => path.split(/[\\/]/).pop() ?? path)
-            .filter((name) => existing.has(name))
-          if (conflicts.length > 0 && !(await askUploadOverwrite(conflicts))) return
+      const items: UploadItem[] = []
+      const preferred = getSettingsSnapshot().uploadConflictPolicy
+      const listing = await window.api.sftp.list(sessionId, remotePath)
+      const occupied = new Set(listing.error ? [] : listing.entries.map((entry) => entry.name))
+      let batchPolicy: 'overwrite' | 'skip' | null = null
+
+      for (const localPath of localPaths) {
+        const name = localPath.split(/[\\/]/).pop() ?? localPath
+        if (!occupied.has(name)) {
+          items.push({ localPath })
+          occupied.add(name)
+          continue
+        }
+
+        let policy: ConflictPolicy
+        if (preferred === 'ask') {
+          if (batchPolicy) {
+            policy = batchPolicy
+          } else {
+            const decision = await askConflict('upload', name)
+            if (!decision) return
+            policy = decision.policy
+            if (decision.applyAll) batchPolicy = decision.policy
+          }
+        } else {
+          policy = preferred
+        }
+
+        if (policy === 'skip') continue
+        if (policy === 'rename') {
+          const remoteName = uniqueRemoteName(name, occupied)
+          items.push({ localPath, remoteName })
+          occupied.add(remoteName)
+        } else {
+          items.push({ localPath })
         }
       }
+
+      if (items.length === 0) return
       const taskId = crypto.randomUUID()
       const name =
-        localPaths.length === 1
-          ? (localPaths[0].split(/[\\/]/).pop() ?? localPaths[0])
-          : t('sftp.items', { count: localPaths.length })
+        items.length === 1
+          ? (items[0].remoteName ?? items[0].localPath.split(/[\\/]/).pop() ?? items[0].localPath)
+          : t('sftp.items', { count: items.length })
       addTransfer({ taskId, sessionId, direction: 'up', name, total: 0 })
-      const result = await window.api.sftp.upload(sessionId, taskId, localPaths, remotePath)
+      const result = await window.api.sftp.upload(sessionId, taskId, items, remotePath)
       if ('error' in result) {
         toast.error(t('sftp.uploadFailed', { message: result.error }))
         removeTransfer(taskId)
@@ -237,7 +295,7 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
       // 传输完成后文件才出现在目标目录：轮询任务终态后刷新
       watchTaskDone(taskId, () => remotePath && refreshRemote(remotePath))
     },
-    [sessionId, remotePath, askUploadOverwrite, refreshRemote, watchTaskDone]
+    [sessionId, remotePath, askConflict, refreshRemote, watchTaskDone]
   )
 
   /** 发起批量下载任务（统一入口：快速下载 / 下载到… / 双栏箭头） */
@@ -261,39 +319,36 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
     [sessionId, watchTaskDone]
   )
 
-  /** 冲突询问：本地目标目录已有同名项时弹窗，返回 null 表示用户取消 */
-  const askConflict = useCallback(
-    (names: string[]) =>
-      new Promise<ConflictPolicy | null>((resolve) => {
-        setConflictAsk({ names, resolve })
-      }),
-    []
-  )
-
   /** 把远程条目下载到本地目录：先查同名冲突，必要时询问策略 */
   const downloadToDir = useCallback(
     async (entries: SftpEntry[], targetDir: string, onDone?: () => void) => {
-      const items: DownloadItem[] = entries.map((e) => ({
-        remotePath: e.path,
-        localPath: joinLocal(targetDir, e.name)
-      }))
-      let policy: ConflictPolicy = 'overwrite'
+      const items: DownloadItem[] = []
+      const preferred = getSettingsSnapshot().downloadConflictPolicy
+      let batchPolicy: 'overwrite' | 'skip' | null = null
       const listing = await window.api.local.list(targetDir)
-      if (!listing.error) {
-        const existing = new Set(listing.entries.map((e) => e.name))
-        const conflicts = entries.filter((e) => existing.has(e.name)).map((e) => e.name)
-        if (conflicts.length > 0) {
-          const preferred = getSettingsSnapshot().downloadConflictPolicy
-          if (preferred === 'ask') {
-            const chosen = await askConflict(conflicts)
-            if (!chosen) return
-            policy = chosen
+      const existing = new Set(listing.error ? [] : listing.entries.map((entry) => entry.name))
+
+      for (const entry of entries) {
+        const hasConflict = existing.has(entry.name)
+        let policy: ConflictPolicy = preferred === 'ask' ? 'overwrite' : preferred
+        if (hasConflict && preferred === 'ask') {
+          if (batchPolicy) {
+            policy = batchPolicy
           } else {
-            policy = preferred
+            const decision = await askConflict('download', entry.name)
+            if (!decision) return
+            policy = decision.policy
+            if (decision.applyAll) batchPolicy = decision.policy
           }
         }
+        if (hasConflict && policy === 'skip') continue
+        items.push({
+          remotePath: entry.path,
+          localPath: joinLocal(targetDir, entry.name),
+          conflict: policy
+        })
       }
-      await startDownloadTask(items, policy, onDone)
+      await startDownloadTask(items, 'overwrite', onDone)
     },
     [askConflict, startDownloadTask]
   )
@@ -920,36 +975,50 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
         </div>
       )}
 
-      {/* 同名冲突策略弹窗：对整个下载任务生效 */}
+      {/* 同名冲突逐项确认：应用所有只作用于本次批量任务 */}
       <Dialog
         open={conflictAsk !== null}
         onOpenChange={(open) => {
-          if (!open) {
-            conflictAsk?.resolve(null)
-            setConflictAsk(null)
-          }
+          if (!open) cancelConflict()
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-w-[calc(100vw-24px)]">
           <DialogHeader>
-            <DialogTitle>{t('sftp.conflictTitle')}</DialogTitle>
+            <DialogTitle>
+              {t(
+                conflictAsk?.direction === 'upload'
+                  ? 'sftp.uploadConflictTitle'
+                  : 'sftp.conflictTitle'
+              )}
+            </DialogTitle>
           </DialogHeader>
           <DialogBody>
             <p className="font-mono text-[11px] text-dim leading-relaxed break-all">
-              {t('sftp.conflictDesc', { names: conflictAsk?.names.join('、') ?? '' })}
+              {t(
+                conflictAsk?.direction === 'upload'
+                  ? 'sftp.uploadConflictDesc'
+                  : 'sftp.conflictDesc',
+                { name: conflictAsk?.name ?? '' }
+              )}
             </p>
           </DialogBody>
-          <DialogFooter className="justify-end">
-            <Button size="sm" onClick={() => { conflictAsk?.resolve(null); setConflictAsk(null) }}>
-              {t('common.cancel')}
-            </Button>
-            <Button size="sm" onClick={() => { conflictAsk?.resolve('skip'); setConflictAsk(null) }}>
+          <DialogFooter className="items-center">
+            <label
+              htmlFor="apply-conflict-to-all"
+              className="mr-auto flex min-h-4 cursor-pointer items-center gap-2 font-mono text-[11px] leading-none text-dim"
+            >
+              <Checkbox
+                id="apply-conflict-to-all"
+                className="-translate-y-px"
+                checked={applyConflictToAll}
+                onCheckedChange={(checked) => setApplyConflictToAll(checked === true)}
+              />
+              {t('sftp.applyAll')}
+            </label>
+            <Button size="sm" onClick={() => answerConflict('skip')}>
               {t('sftp.conflictSkip')}
             </Button>
-            <Button size="sm" onClick={() => { conflictAsk?.resolve('rename'); setConflictAsk(null) }}>
-              {t('sftp.conflictRename')}
-            </Button>
-            <Button size="sm" variant="solid" onClick={() => { conflictAsk?.resolve('overwrite'); setConflictAsk(null) }}>
+            <Button size="sm" variant="solid" onClick={() => answerConflict('overwrite')}>
               {t('sftp.conflictOverwrite')}
             </Button>
           </DialogFooter>
@@ -975,50 +1044,6 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
             </Button>
             <Button size="sm" variant="solid" className="!text-danger !border-danger/40" onClick={confirmDelete}>
               {t('sftp.deleteConfirm')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={uploadOverwriteAsk !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            uploadOverwriteAsk?.resolve(false)
-            setUploadOverwriteAsk(null)
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('sftp.uploadConflictTitle')}</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <p className="font-mono text-[11px] text-dim leading-relaxed break-all">
-              {t('sftp.uploadConflictDesc', {
-                names: uploadOverwriteAsk?.names.join('、') ?? ''
-              })}
-            </p>
-          </DialogBody>
-          <DialogFooter className="justify-end">
-            <Button
-              size="sm"
-              onClick={() => {
-                uploadOverwriteAsk?.resolve(false)
-                setUploadOverwriteAsk(null)
-              }}
-            >
-              {t('common.cancel')}
-            </Button>
-            <Button
-              size="sm"
-              variant="solid"
-              onClick={() => {
-                uploadOverwriteAsk?.resolve(true)
-                setUploadOverwriteAsk(null)
-              }}
-            >
-              {t('sftp.conflictOverwrite')}
             </Button>
           </DialogFooter>
         </DialogContent>
