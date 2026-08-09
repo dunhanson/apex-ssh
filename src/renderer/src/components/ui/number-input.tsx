@@ -46,6 +46,7 @@ function NumberInput({
 
   return (
     <div
+      data-slot="number-input"
       className={cn(
         'flex h-9 w-full overflow-hidden rounded-sm border border-line bg-surface transition-colors duration-100 focus-within:border-white/20',
         disabled && 'opacity-40',

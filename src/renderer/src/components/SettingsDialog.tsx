@@ -49,10 +49,12 @@ interface SettingsWorkspaceProps {
 
 function SettingToggle({
   checked,
+  emphasized = false,
   label,
   onChange
 }: {
   checked: boolean
+  emphasized?: boolean
   label: string
   onChange: (checked: boolean) => void
 }) {
@@ -64,14 +66,20 @@ function SettingToggle({
       aria-label={label}
       className={cn(
         'relative h-5 w-9 shrink-0 rounded-full border transition-colors cursor-pointer outline-none',
-        checked ? 'border-white/25 bg-white/[0.12]' : 'border-line-strong bg-elevated'
+        checked && emphasized
+          ? 'border-settings-emphasis/40 bg-settings-emphasis/[0.12]'
+          : checked
+            ? 'border-white/25 bg-white/[0.12]'
+            : 'border-settings-control bg-elevated'
       )}
       onClick={() => onChange(!checked)}
     >
       <span
         className={cn(
           'absolute top-[3px] size-3 rounded-full transition-[left,background-color]',
-          checked ? 'left-[19px] bg-fg' : 'left-[3px] bg-faint'
+          checked
+            ? cn('left-[19px]', emphasized ? 'bg-settings-emphasis' : 'bg-fg')
+            : 'left-[3px] bg-faint'
         )}
       />
     </button>
@@ -173,16 +181,23 @@ function SettingSelect({
 
 function SettingsSection({
   title,
+  description,
+  showTitle = true,
   children
 }: {
   title: string
+  description?: string
+  showTitle?: boolean
   children: ReactNode
 }) {
   return (
-    <section className="flex flex-col gap-4">
-      <div className="font-mono text-[10px] leading-4 tracking-[0.08em] text-ghost uppercase">
-        {title}
-      </div>
+    <section className="settings-section">
+      {showTitle && (
+        <div className="settings-section-heading">
+          <h2 className="settings-section-title">{title}</h2>
+          {description && <p className="settings-section-description">{description}</p>}
+        </div>
+      )}
       {children}
     </section>
   )
@@ -629,21 +644,21 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
       <div className="settings-workspace-main">
         <header className="settings-workspace-header">
           <div className="min-w-0">
-            <h1 className="font-sans text-base leading-6 font-semibold text-fg">
+            <h1 className="settings-page-title">
               {activeCategory.label}
             </h1>
-            <p className="truncate font-sans text-[11px] leading-4 text-ghost">
+            <p className="settings-page-description truncate">
               {activeCategory.description}
             </p>
           </div>
-          <span className="ml-auto shrink-0 font-mono text-[11px] leading-4 text-ghost">
+          <span className="settings-page-meta ml-auto shrink-0">
             {t('settings.autoApplied')}
           </span>
         </header>
 
         <div className="settings-workspace-content">
           <TabsContent value="terminal">
-            <SettingsSection title={t('settings.terminal')}>
+            <SettingsSection title={t('settings.terminal')} showTitle={false}>
               <div className="settings-form-grid">
                 <div>
                   <Label htmlFor="settings-font-size">{t('settings.fontSize')}</Label>
@@ -688,7 +703,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
           </TabsContent>
 
           <TabsContent value="interface">
-            <SettingsSection title={t('settings.interface')}>
+            <SettingsSection title={t('settings.interface')} showTitle={false}>
               <div className="settings-form-grid">
                 <div>
                   <Label htmlFor="settings-language">{t('settings.language')}</Label>
@@ -707,7 +722,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                 </div>
                 <div>
                   <Label>{t('settings.showSessionInfoBar')}</Label>
-                  <div className="h-9 flex items-center justify-between gap-4 px-2.5 bg-surface border border-line rounded-sm">
+                  <div className="settings-control-surface h-9 flex items-center justify-between gap-4 px-2.5 rounded-sm border">
                     <span
                       className={cn(
                         'font-mono text-[12px]',
@@ -728,12 +743,12 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
           </TabsContent>
 
           <TabsContent value="transfer">
-            <SettingsSection title={t('settings.transfer')}>
+            <SettingsSection title={t('settings.transfer')} showTitle={false}>
               <div className="max-w-[560px]">
                 <Label>{t('settings.downloadDir')}</Label>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                   <div
-                    className="min-w-0 h-9 flex items-center px-2.5 bg-surface border border-line rounded-sm font-mono text-[11px] text-faint"
+                    className="settings-control-surface min-w-0 h-9 flex items-center px-2.5 rounded-sm border font-mono text-[11px] text-faint"
                     title={settings.downloadDir || undefined}
                   >
                     <span className="truncate">
@@ -755,20 +770,20 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
           </TabsContent>
 
           <TabsContent value="backup">
-            <SettingsSection title={t('settings.hostBackup')}>
+            <SettingsSection title={t('settings.hostBackup')} showTitle={false}>
               <div className="flex max-w-[560px] flex-col gap-3">
-                <div className="flex flex-col gap-1">
-                  <Label className="mb-0">{t('settings.hostBackupLabel')}</Label>
-                  <p className="font-mono text-[10px] leading-4 text-ghost">
+                <div className="settings-section-heading">
+                  <h2 className="settings-section-title">{t('settings.hostBackupLabel')}</h2>
+                  <p className="settings-section-description">
                     {t('settings.hostBackupBaseHint')}
                   </p>
                 </div>
-                <div className="flex min-h-12 items-center justify-between gap-4 rounded-sm border border-line bg-surface px-3 py-2">
+                <div className="settings-control-surface flex min-h-12 items-center justify-between gap-4 rounded-sm border px-3 py-2">
                   <div className="min-w-0">
-                    <div className="font-mono text-[11px] leading-4 text-body">
+                    <div className="settings-control-title">
                       {t('settings.includeCredentials')}
                     </div>
-                    <div className="font-mono text-[10px] leading-4 text-ghost">
+                    <div className="settings-control-description">
                       {includeCredentials
                         ? t('settings.encryptedBackupHint')
                         : t('settings.hostBackupHint')}
@@ -776,6 +791,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </div>
                   <SettingToggle
                     checked={includeCredentials}
+                    emphasized
                     label={t('settings.includeCredentials')}
                     onChange={(backupIncludeCredentials) => patch({ backupIncludeCredentials })}
                   />
@@ -974,11 +990,11 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
           </TabsContent>
 
           <TabsContent value="sync">
-            <SettingsSection title={t('settings.syncConnection')}>
+            <SettingsSection
+              title={t('settings.syncConnection')}
+              description={t('settings.syncConnectionHint')}
+            >
               <div className="flex max-w-[560px] flex-col gap-3">
-                <p className="font-mono text-[10px] leading-4 text-ghost">
-                  {t('settings.syncConnectionHint')}
-                </p>
                 <div className="settings-form-grid">
                   <div className="settings-form-wide">
                     <Label htmlFor="sync-host">{t('settings.syncHost')}</Label>
@@ -1053,14 +1069,14 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
               </div>
             </SettingsSection>
 
-            <SettingsSection title={t('settings.syncKeySection')}>
+            <SettingsSection
+              title={t('settings.syncKeySection')}
+              description={t('settings.syncKeyHint')}
+            >
               <div className="flex max-w-[560px] flex-col gap-3">
-                <p className="font-mono text-[10px] leading-4 text-ghost">
-                  {t('settings.syncKeyHint')}
-                </p>
-                <div className="flex min-h-12 items-center justify-between gap-4 rounded-sm border border-line bg-surface px-3 py-2">
+                <div className="settings-control-surface flex min-h-12 items-center justify-between gap-4 rounded-sm border px-3 py-2">
                   <div className="min-w-0">
-                    <div className="font-mono text-[11px] leading-4 text-body">
+                    <div className="settings-control-title">
                       {syncState?.hasKey
                         ? t('settings.syncKeyConfigured')
                         : t('settings.syncKeyNotConfigured')}
@@ -1131,17 +1147,18 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
 
             <SettingsSection title={t('settings.syncSection')}>
               <div className="flex max-w-[560px] flex-col gap-3">
-                <div className="flex min-h-12 items-center justify-between gap-4 rounded-sm border border-line bg-surface px-3 py-2">
+                <div className="settings-control-surface flex min-h-12 items-center justify-between gap-4 rounded-sm border px-3 py-2">
                   <div className="min-w-0">
-                    <div className="font-mono text-[11px] leading-4 text-body">
+                    <div className="settings-control-title">
                       {t('settings.syncEnable')}
                     </div>
-                    <div className="font-mono text-[10px] leading-4 text-ghost">
+                    <div className="settings-control-description">
                       {t('settings.syncEnabledHint')}
                     </div>
                   </div>
                   <SettingToggle
                     checked={syncState?.enabled ?? false}
+                    emphasized
                     label={t('settings.syncEnable')}
                     onChange={(enabled) => void toggleSyncEnabled(enabled)}
                   />
@@ -1160,26 +1177,23 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     })}
                   </div>
                 )}
-                <Button
-                  className="w-full"
-                  disabled={syncBusy || !syncState?.enabled || syncState.syncing}
-                  onClick={() => void runSyncAction(window.api.cloudSync.syncNow)}
-                >
-                  <RefreshCw data-icon="inline-start" />
-                  {t('settings.syncNow')}
-                </Button>
-              </div>
-            </SettingsSection>
-
-            <SettingsSection title={t('settings.syncDanger')}>
-              <div className="flex max-w-[560px] flex-col gap-3">
-                <Button
-                  className="w-full"
-                  disabled={syncBusy || !syncState?.configured}
-                  onClick={() => setClearRemoteAsk(true)}
-                >
-                  {t('settings.syncClearRemote')}
-                </Button>
+                <div className="settings-backup-actions grid gap-3">
+                  <Button
+                    className="w-full"
+                    disabled={syncBusy || !syncState?.enabled || syncState.syncing}
+                    onClick={() => void runSyncAction(window.api.cloudSync.syncNow)}
+                  >
+                    <RefreshCw data-icon="inline-start" />
+                    {t('settings.syncNow')}
+                  </Button>
+                  <Button
+                    className="w-full"
+                    disabled={syncBusy || !syncState?.configured}
+                    onClick={() => setClearRemoteAsk(true)}
+                  >
+                    {t('settings.syncClearRemote')}
+                  </Button>
+                </div>
               </div>
             </SettingsSection>
 
@@ -1239,12 +1253,12 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
           </TabsContent>
 
           <TabsContent value="about">
-            <SettingsSection title={t('settings.about')}>
-              <div className="flex min-h-14 max-w-[560px] items-center gap-3 rounded-sm border border-line bg-surface px-3">
+            <SettingsSection title={t('settings.about')} showTitle={false}>
+              <div className="settings-control-surface flex min-h-14 max-w-[560px] items-center gap-3 rounded-sm border px-3">
                 <img src={logoUrl} alt="" className="size-7 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="font-mono text-[12px] text-fg">Apex SSH</div>
-                  <div className="font-mono text-[10px] text-ghost truncate">
+                  <div className="settings-control-description truncate">
                     {t('settings.aboutDesc')}
                   </div>
                 </div>
@@ -1253,8 +1267,8 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                 </div>
               </div>
 
-              <div className="flex max-w-[560px] flex-col gap-2.5 rounded-sm border border-line bg-surface px-3 py-3">
-                <div className="font-mono text-[10px] leading-4 tracking-[0.08em] text-ghost uppercase">
+              <div className="settings-control-surface flex max-w-[560px] flex-col gap-2.5 rounded-sm border px-3 py-3">
+                <div className="settings-section-title">
                   {t('settings.update')}
                 </div>
                 <div className="font-mono text-[11px] leading-4 text-dim break-all">
