@@ -50,3 +50,14 @@ describe('关于设置分组文案', () => {
     expect(i18n.t('settings.appInfo', { lng: 'en-US' })).toBe('Application information')
   })
 })
+
+describe('SFTP 文件操作文案', () => {
+  it('提供中英文新建、打开和复制操作', () => {
+    expect(i18n.t('sftp.newFolder', { lng: 'zh-CN' })).toBe('新建文件夹')
+    expect(i18n.t('sftp.menuOpen', { lng: 'zh-CN' })).toBe('打开')
+    expect(i18n.t('sftp.menuCopyName', { lng: 'zh-CN' })).toBe('复制名称')
+    expect(i18n.t('sftp.newFolder', { lng: 'en-US' })).toBe('New folder')
+    expect(i18n.t('sftp.menuOpen', { lng: 'en-US' })).toBe('Open')
+    expect(i18n.t('sftp.menuCopyName', { lng: 'en-US' })).toBe('Copy name')
+  })
+})

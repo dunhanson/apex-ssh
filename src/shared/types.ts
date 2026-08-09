@@ -372,6 +372,9 @@ export const IPC = {
   SftpProgress: 'sftp:progress',
   LocalHome: 'local:home',
   LocalList: 'local:list',
+  LocalMkdir: 'local:mkdir',
+  LocalOpen: 'local:open',
+  LocalReveal: 'local:reveal',
   LocalRename: 'local:rename',
   LocalRemove: 'local:remove',
   CredsListKeys: 'creds:list-keys',
@@ -510,6 +513,12 @@ export interface RendererApi {
   local: {
     home: () => Promise<string>
     list: (path: string) => Promise<SftpListResult>
+    /** 在指定本地目录中新建文件夹；返回 null 成功，否则错误信息 */
+    mkdir: (path: string, name: string) => Promise<string | null>
+    /** 使用系统默认程序打开本地文件或目录；返回 null 成功，否则错误信息 */
+    open: (path: string) => Promise<string | null>
+    /** 在系统文件管理器中显示本地项目；返回 null 成功，否则错误信息 */
+    reveal: (path: string) => Promise<string | null>
     rename: (path: string, name: string) => Promise<string | null>
     remove: (paths: string[]) => Promise<string | null>
   }

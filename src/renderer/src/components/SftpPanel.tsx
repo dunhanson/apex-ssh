@@ -46,7 +46,8 @@ import { addTransfer, clearCompleted, getTransfer, removeTransfer, useTransfers,
  * 面板式（远程目录导航 / 筛选 / 新建文件夹 / 上传）与双栏式（左本地右远程 + 箭头互传）一键切换；
  * 面板高度 120px–视口 80% 可拖拽；本地文件拖入远程区即上传（含嵌套目录）；底部为统一传输队列。
  * 远程列表为标准多选（单击选中 / Ctrl 切换 / Shift 范围），双击目录进入、双击文件下载；
- * 右键菜单提供下载（到默认目录）/ 下载到… / 重命名 / 删除 / 复制路径，批量下载合并为单任务，
+ * 两侧右键菜单提供打开 / 新建文件夹 / 重命名 / 删除 / 复制名称与路径等上下文操作，
+ * 远程下载（到默认目录）/ 下载到…与本地上传支持批量合并为单任务，
  * 上传与下载同名冲突支持逐项确认，并可把覆盖或跳过应用到本次批量任务的其余冲突。
  */
 interface SftpPanelProps {
@@ -116,6 +117,7 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
   const [localPath, setLocalPath] = useState<string | null>(null)
   const [localPathInput, setLocalPathInput] = useState('')
   const [local, setLocal] = useState<SftpListResult | null>(null)
+  const [localCreating, setLocalCreating] = useState(false)
   const [localRenaming, setLocalRenaming] = useState<string | null>(null)
   const [selLocal, setSelLocal] = useState<Set<string>>(new Set())
   const [selRemote, setSelRemote] = useState<Set<string>>(new Set())
@@ -175,6 +177,7 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
       setLocalPath(result.path)
       setLocalPathInput(result.path)
     }
+    return result
   }, [])
 
   // 打开面板：定位到当前 Shell 的工作目录（查询失败时主进程回退到远端 home）
@@ -388,9 +391,30 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
     setCreating(false)
     const trimmed = name.trim()
     if (!trimmed || !remotePath) return
-    const err = await window.api.sftp.mkdir(sessionId, joinRemote(remotePath, trimmed))
+    const nextPath = joinRemote(remotePath, trimmed)
+    const err = await window.api.sftp.mkdir(sessionId, nextPath)
     if (err) toast.error(t('sftp.mkdirFailed', { message: err }))
-    else refreshRemote(remotePath)
+    else {
+      await refreshRemote(remotePath)
+      setSelRemote(new Set([nextPath]))
+      anchorRef.current = nextPath
+    }
+  }
+
+  const submitLocalNewFolder = async (name: string) => {
+    setLocalCreating(false)
+    const trimmed = name.trim()
+    if (!trimmed || !localPath) return
+    const err = await window.api.local.mkdir(localPath, trimmed)
+    if (err) toast.error(t('sftp.mkdirFailed', { message: err }))
+    else {
+      const result = await refreshLocal(localPath)
+      const createdPath = result.entries.find((entry) => entry.name === trimmed)?.path
+      if (createdPath) {
+        setSelLocal(new Set([createdPath]))
+        localAnchorRef.current = createdPath
+      }
+    }
   }
 
   /** 重命名：内联输入行确认 */
@@ -557,6 +581,43 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
   const selectedRemoteEntries = (): SftpEntry[] =>
     (remote?.entries ?? []).filter((e) => selRemote.has(e.path))
 
+  const copyEntries = async (entries: SftpEntry[], field: 'name' | 'path') => {
+    if (entries.length === 0) return
+    await window.api.clipboard.writeText(entries.map((entry) => entry[field]).join('\n'))
+    toast.success(t(field === 'name' ? 'sftp.nameCopied' : 'sftp.pathCopied'))
+  }
+
+  const openRemoteSelection = () => {
+    const [entry] = selectedRemoteEntries()
+    if (selRemote.size !== 1 || entry?.type !== 'dir') return
+    setFilter('')
+    refreshRemote(entry.path)
+  }
+
+  const openLocalSelection = async () => {
+    const [entry] = selectedLocalEntries()
+    if (selLocal.size !== 1 || !entry) return
+    if (entry.type === 'dir') {
+      refreshLocal(entry.path)
+      return
+    }
+    const err = await window.api.local.open(entry.path)
+    if (err) toast.error(t('sftp.openFailed', { message: err }))
+  }
+
+  const revealLocalSelection = async () => {
+    const [entry] = selectedLocalEntries()
+    if (selLocal.size !== 1 || !entry) return
+    const err = await window.api.local.reveal(entry.path)
+    if (err) toast.error(t('sftp.revealFailed', { message: err }))
+  }
+
+  const openLocalLocation = async () => {
+    if (!localPath) return
+    const err = await window.api.local.open(localPath)
+    if (err) toast.error(t('sftp.openFailed', { message: err }))
+  }
+
   const renderEntryRow = (
     entry: SftpEntry,
     opts: {
@@ -662,6 +723,12 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
       <ContextMenuContent>
         {menuEntry ? (
           <>
+            <ContextMenuItem
+              disabled={selRemote.size !== 1 || menuEntry.type !== 'dir'}
+              onSelect={openRemoteSelection}
+            >
+              {t('sftp.menuOpen')}
+            </ContextMenuItem>
             <ContextMenuItem onSelect={() => quickDownload(selectedRemoteEntries())}>
               {t('sftp.menuDownload')}
             </ContextMenuItem>
@@ -669,6 +736,9 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
               {t('sftp.menuDownloadTo')}
             </ContextMenuItem>
             <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => setCreating(true)}>
+              {t('sftp.newFolder')}
+            </ContextMenuItem>
             <ContextMenuItem
               disabled={selRemote.size !== 1}
               onSelect={() => menuEntry && setRenaming(menuEntry.path)}
@@ -679,11 +749,11 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
               {t('sftp.menuDelete')}
             </ContextMenuItem>
             <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => copyEntries(selectedRemoteEntries(), 'name')}>
+              {t('sftp.menuCopyName')}
+            </ContextMenuItem>
             <ContextMenuItem
-              onSelect={() => {
-                navigator.clipboard.writeText(selectedRemoteEntries().map((e) => e.path).join('\n'))
-                toast.success(t('sftp.pathCopied'))
-              }}
+              onSelect={() => copyEntries(selectedRemoteEntries(), 'path')}
             >
               {t('sftp.menuCopyPath')}
             </ContextMenuItem>
@@ -873,15 +943,36 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
                         })
                       )
                     )}
+                    {localCreating && (
+                      <div className="flex items-center gap-2 px-3 py-[4px]">
+                        <Folder className="size-3.5 text-dim shrink-0" strokeWidth={1.5} />
+                        <input
+                          autoFocus
+                          className="flex-1 bg-elevated border border-line-strong rounded-sm px-1.5 py-0.5 font-mono text-[11px] text-fg outline-none"
+                          placeholder={t('sftp.newFolderPlaceholder')}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') submitLocalNewFolder(e.currentTarget.value)
+                            if (e.key === 'Escape') setLocalCreating(false)
+                          }}
+                          onBlur={() => setLocalCreating(false)}
+                        />
+                      </div>
+                    )}
                   </div>
                 </ContextMenuTrigger>
                 <ContextMenuContent>
                   {localMenuEntry ? (
                     <>
+                      <ContextMenuItem disabled={selLocal.size !== 1} onSelect={openLocalSelection}>
+                        {t('sftp.menuOpen')}
+                      </ContextMenuItem>
                       <ContextMenuItem onSelect={uploadSelectedLocal}>
                         {t('sftp.uploadSelected')}
                       </ContextMenuItem>
                       <ContextMenuSeparator />
+                      <ContextMenuItem onSelect={() => setLocalCreating(true)}>
+                        {t('sftp.newFolder')}
+                      </ContextMenuItem>
                       <ContextMenuItem
                         disabled={selLocal.size !== 1}
                         onSelect={() => localMenuEntry && setLocalRenaming(localMenuEntry.path)}
@@ -892,19 +983,31 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
                         {t('sftp.menuDelete')}
                       </ContextMenuItem>
                       <ContextMenuSeparator />
+                      <ContextMenuItem onSelect={() => copyEntries(selectedLocalEntries(), 'name')}>
+                        {t('sftp.menuCopyName')}
+                      </ContextMenuItem>
                       <ContextMenuItem
-                        onSelect={() => {
-                          navigator.clipboard.writeText([...selLocal].join('\n'))
-                          toast.success(t('sftp.pathCopied'))
-                        }}
+                        onSelect={() => copyEntries(selectedLocalEntries(), 'path')}
                       >
                         {t('sftp.menuCopyPath')}
                       </ContextMenuItem>
+                      <ContextMenuItem disabled={selLocal.size !== 1} onSelect={revealLocalSelection}>
+                        {t('sftp.menuReveal')}
+                      </ContextMenuItem>
                     </>
                   ) : (
-                    <ContextMenuItem onSelect={() => localPath && refreshLocal(localPath)}>
-                      {t('sftp.refresh')}
-                    </ContextMenuItem>
+                    <>
+                      <ContextMenuItem onSelect={() => localPath && refreshLocal(localPath)}>
+                        {t('sftp.refresh')}
+                      </ContextMenuItem>
+                      <ContextMenuItem onSelect={() => setLocalCreating(true)}>
+                        {t('sftp.newFolder')}
+                      </ContextMenuItem>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem onSelect={openLocalLocation}>
+                        {t('sftp.menuOpenLocation')}
+                      </ContextMenuItem>
+                    </>
                   )}
                 </ContextMenuContent>
               </ContextMenu>

@@ -129,6 +129,10 @@ const api: RendererApi = {
   local: {
     home: (): Promise<string> => ipcRenderer.invoke(IPC.LocalHome),
     list: (path: string): Promise<SftpListResult> => ipcRenderer.invoke(IPC.LocalList, path),
+    mkdir: (path: string, name: string): Promise<string | null> =>
+      ipcRenderer.invoke(IPC.LocalMkdir, path, name),
+    open: (path: string): Promise<string | null> => ipcRenderer.invoke(IPC.LocalOpen, path),
+    reveal: (path: string): Promise<string | null> => ipcRenderer.invoke(IPC.LocalReveal, path),
     rename: (path: string, name: string): Promise<string | null> =>
       ipcRenderer.invoke(IPC.LocalRename, path, name),
     remove: (paths: string[]): Promise<string | null> => ipcRenderer.invoke(IPC.LocalRemove, paths)

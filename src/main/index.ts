@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { promises as fsp } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join, parse, resolve } from 'node:path'
@@ -476,6 +476,34 @@ function registerIpc(): void {
       return { path, entries }
     } catch (err) {
       return { path, entries: [], error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+  ipcMain.handle(IPC.LocalMkdir, async (_e, path: string, name: string): Promise<string | null> => {
+    try {
+      const nextName = name.trim()
+      if (!nextName || nextName === '.' || nextName === '..' || basename(nextName) !== nextName) {
+        throw new Error('文件夹名称不能包含路径分隔符')
+      }
+      await fsp.mkdir(join(resolve(path), nextName))
+      return null
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err)
+    }
+  })
+  ipcMain.handle(IPC.LocalOpen, async (_e, path: string): Promise<string | null> => {
+    try {
+      const error = await shell.openPath(resolve(path))
+      return error || null
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err)
+    }
+  })
+  ipcMain.handle(IPC.LocalReveal, async (_e, path: string): Promise<string | null> => {
+    try {
+      shell.showItemInFolder(resolve(path))
+      return null
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err)
     }
   })
   ipcMain.handle(IPC.LocalRename, async (_e, path: string, name: string): Promise<string | null> => {
