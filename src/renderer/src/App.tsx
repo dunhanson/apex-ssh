@@ -571,7 +571,7 @@ export default function App() {
               <EmptyState
                 hosts={hosts}
                 sessionHostIds={sessionHostIds}
-                showHeaderActions={false}
+                showConnectionsAction={false}
                 onConnect={connectHost}
                 onHostAction={handleRecentHostAction}
                 onNewConnection={(address) => {
@@ -631,7 +631,7 @@ export default function App() {
           <EmptyState
             hosts={hosts}
             sessionHostIds={sessionHostIds}
-            showHeaderActions
+            showConnectionsAction
             onConnect={connectHost}
             onHostAction={handleRecentHostAction}
             onNewConnection={(address) => {

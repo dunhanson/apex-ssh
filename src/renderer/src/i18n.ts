@@ -64,7 +64,8 @@ const resources = {
         title: '配置和连接',
         savedCount: '{{count}} 台已保存主机',
         filter: '筛选主机…',
-        hint: '选择主机后在当前标签中连接'
+        hint: '单击选择，双击或按 Enter 连接',
+        connect: '连接'
       },
       terminalMenu: {
         copy: '复制',
@@ -502,7 +503,8 @@ const resources = {
         title: 'Connections',
         savedCount: '{{count}} saved hosts',
         filter: 'Filter hosts…',
-        hint: 'Choose a host to connect in the current tab'
+        hint: 'Click to select; double-click or press Enter to connect',
+        connect: 'Connect'
       },
       terminalMenu: {
         copy: 'Copy',

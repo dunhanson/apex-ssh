@@ -30,8 +30,8 @@ interface DescriptionTooltipState {
 interface EmptyStateProps {
   hosts: HostConfig[]
   sessionHostIds: Set<string>
-  /** 首次无标签时显示标题行入口；空白标签中由顶部标签栏提供入口。 */
-  showHeaderActions: boolean
+  /** 顶部标签栏没有连接管理入口时，在启动器标题行补充显示。 */
+  showConnectionsAction: boolean
   onConnect: (host: HostConfig) => void
   onHostAction: (host: HostConfig, action: HostAction) => void
   onNewConnection: (address?: ConnectionAddress) => void
@@ -51,7 +51,7 @@ function formatTime(timestamp: number): string {
 export function EmptyState({
   hosts,
   sessionHostIds,
-  showHeaderActions,
+  showConnectionsAction,
   onConnect,
   onHostAction,
   onNewConnection,
@@ -209,16 +209,16 @@ export function EmptyState({
           <div className="font-mono text-[14px] leading-5 font-medium tracking-[0.14em] text-body">
             APEX <span className="font-sans text-[11px] leading-4 tracking-normal text-faint">SSH</span>
           </div>
-          {showHeaderActions && (
-            <div className="ml-auto flex items-center gap-0.5">
-              <button
-                className="launcher-tool"
-                title={t('sidebar.newConnection')}
-                aria-label={t('sidebar.newConnection')}
-                onClick={() => onNewConnection()}
-              >
-                <Plus className="size-3.5" />
-              </button>
+          <div className="ml-auto flex items-center gap-0.5">
+            <button
+              className="launcher-tool"
+              title={t('sidebar.newConnection')}
+              aria-label={t('sidebar.newConnection')}
+              onClick={() => onNewConnection()}
+            >
+              <Plus className="size-3.5" />
+            </button>
+            {showConnectionsAction && (
               <button
                 className="launcher-tool"
                 title={t('connections.title')}
@@ -227,8 +227,8 @@ export function EmptyState({
               >
                 <PanelsTopLeft className="size-3.5" />
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="h-12 px-3.5 flex items-center gap-2.5 border border-white/[0.13] rounded-sm bg-panel focus-within:border-white/30 transition-colors">
