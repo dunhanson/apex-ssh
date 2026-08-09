@@ -2,19 +2,20 @@
 
 /*
  * 设计令牌：取自项目设计稿的 Design Notes。
- * 纯黑主题一套，圆角统一 2px；JetBrains Mono 用于终端与 mono 标注，Inter 用于正文。
+ * 纯黑终端与 shadcn 深色界面并存；JetBrains Mono 用于终端与 mono 标注，Inter 用于正文和按钮。
  */
 @theme {
   /* 背景层级 */
   --color-ink: #000000; /* 终端 / 主区域底色 */
   --color-panel: #050505; /* 侧栏 / 标签栏 */
-  --color-surface: #060606; /* 输入框 */
-  --color-raised: #0a0a0a; /* 弹窗 / toast */
-  --color-elevated: #0d0d0d; /* 搜索框 */
+  --color-page: #09090b; /* 设置页 / 产品界面 */
+  --color-surface: #171719; /* 输入框 / 次级表面 */
+  --color-raised: #0a0a0b; /* 弹窗 / toast */
+  --color-elevated: #171719; /* 搜索框 / 悬浮表面 */
 
   /* 描边 */
-  --color-line: rgba(255, 255, 255, 0.07);
-  --color-line-strong: rgba(255, 255, 255, 0.1);
+  --color-line: #2a2a2e;
+  --color-line-strong: rgba(255, 255, 255, 0.16);
 
   /* 文字灰阶 */
   --color-fg: #ffffff;
@@ -23,19 +24,37 @@
   --color-faint: #555555;
   --color-ghost: #333333;
 
+  /* 设置工作区信息层级 */
+  --color-settings-page: #f5f5f5;
+  --color-settings-heading: #d4d4d4;
+  --color-settings-label: #a3a3a3;
+  --color-settings-description: #7a7a7a;
+  --color-settings-meta: #666666;
+  --color-settings-navigation: #777777;
+  --color-settings-action: #8a8a8a;
+  --color-settings-emphasis: #d6a75c;
+  --color-settings-surface: #171719;
+  --color-settings-control: rgba(255, 255, 255, 0.13);
+  --color-settings-control-focus: rgba(255, 255, 255, 0.32);
+
   /* 状态色 */
   --color-ok: #4ade80;
   --color-warn: #f59e0b;
   --color-danger: #ef4444;
+  --color-primary: #e5e5e5;
+  --color-primary-hover: #d4d4d4;
+  --color-primary-foreground: #111113;
+  --color-accent: #202023;
+  --color-ring: rgba(250, 250, 250, 0.28);
 
   --font-sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'JetBrains Mono', Consolas, monospace;
 
-  /* 全局圆角约定：2px（状态点等圆形元素用 rounded-full 不受影响） */
+  /* 三级圆角：紧凑工具 2px、常规控件 4px、浮层 6px。 */
   --radius-xs: 2px;
-  --radius-sm: 2px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 6px;
 }
 
 html,
@@ -221,6 +240,14 @@ body {
   -webkit-app-region: no-drag;
 }
 
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed !important;
+}
+
 /* 设置工具标签：桌面使用左侧分类导航，窄窗口或窄分屏切换为顶部导航。 */
 .settings-pane {
   container-type: inline-size;
@@ -230,11 +257,11 @@ body {
   grid-template-columns: 184px minmax(0, 1fr);
   height: 100%;
   min-width: 0;
-  background: var(--color-ink);
+  background: var(--color-page);
 }
 .settings-navigation-title {
   padding: 0 10px 8px;
-  color: var(--color-ghost);
+  color: var(--color-settings-meta);
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
@@ -265,6 +292,116 @@ body {
   padding: 28px 32px 48px;
   box-sizing: border-box;
 }
+.settings-page-title {
+  color: var(--color-settings-page);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+.settings-page-description {
+  color: var(--color-settings-description);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 18px;
+}
+.settings-page-meta {
+  color: var(--color-settings-meta);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+}
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: min(560px, 100%);
+  box-sizing: border-box;
+}
+.settings-section + .settings-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-line-strong);
+}
+.settings-section-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-section-title {
+  color: var(--color-settings-heading);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.settings-section-description,
+.settings-control-description {
+  color: var(--color-settings-description);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  letter-spacing: 0;
+}
+.settings-control-title {
+  color: var(--color-body);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+.settings-control-surface {
+  border-color: var(--color-settings-control);
+  background: var(--color-settings-surface);
+}
+.settings-workspace-content [data-slot='label'] {
+  margin-bottom: 6px;
+  color: var(--color-settings-label);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.settings-workspace-content [data-slot='input'],
+.settings-workspace-content [data-slot='number-input'],
+.settings-workspace-content [data-slot='tabs-list'][data-variant='default'],
+.settings-workspace-content select {
+  border-color: var(--color-settings-control);
+  background: var(--color-settings-surface);
+}
+.settings-workspace-content [data-slot='input']:focus,
+.settings-workspace-content [data-slot='number-input']:focus-within,
+.settings-workspace-content select:focus {
+  border-color: var(--color-settings-control-focus);
+}
+.settings-workspace-content [data-slot='input']::placeholder {
+  color: var(--color-settings-meta);
+}
+.settings-workspace-content [data-slot='button'][data-variant='ghost'] {
+  border-color: var(--color-settings-control);
+  color: var(--color-settings-action);
+}
+.settings-workspace-content [data-slot='button'][data-variant='ghost']:not(:disabled):hover {
+  border-color: var(--color-settings-control-focus);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--color-fg);
+}
+.settings-navigation [data-slot='tabs-trigger'] {
+  color: var(--color-settings-navigation);
+}
+.settings-navigation [data-slot='tabs-trigger']:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-settings-heading);
+}
+.settings-navigation [data-slot='tabs-trigger'][data-state='active'] {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--color-fg);
+}
 .settings-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -273,6 +410,39 @@ body {
 }
 .settings-form-wide {
   grid-column: 1 / -1;
+}
+.settings-backup-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.settings-backup-actions[data-count='1'] {
+  display: flex;
+  justify-content: flex-start;
+}
+.settings-backup-actions[data-count='1'] > button {
+  width: calc((100% - 12px) / 2);
+}
+.settings-update-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+.settings-update-actions > button {
+  width: calc((100% - 8px) / 2);
+}
+.settings-update-actions[data-count='2'] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.settings-update-actions[data-count='2'] > button {
+  width: 100%;
+}
+@container (max-width: 420px) {
+  .settings-backup-actions[data-count='1'] > button,
+  .settings-update-actions > button {
+    width: 100%;
+  }
+  .settings-update-actions[data-count='2'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 @container (max-width: 720px) {
   .settings-workspace {
@@ -304,6 +474,9 @@ body {
   }
   .settings-form-wide {
     grid-column: auto;
+  }
+  .settings-backup-actions {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

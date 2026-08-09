@@ -1,19 +1,24 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import type {
   AppSettings,
+  CloudSyncConnectionInput,
+  CloudSyncState,
   ConflictPolicy,
   DetachedSessionInfo,
   DownloadItem,
   HostConfig,
+  HostGroup,
   HostInput,
   RecentEntry,
   RendererApi,
   SessionDataEvent,
   SessionStatusEvent,
   SftpListResult,
+  UploadItem,
   SshConfigEntry,
   TermSize,
-  TransferProgress
+  TransferProgress,
+  UpdateStatus
 } from '@shared/types'
 import { IPC } from '@shared/types'
 
@@ -29,8 +34,22 @@ const api: RendererApi = {
     add: (input: HostInput) => ipcRenderer.invoke(IPC.HostsAdd, input),
     delete: (id: string) => ipcRenderer.invoke(IPC.HostsDelete, id),
     update: (id: string, input: HostInput) => ipcRenderer.invoke(IPC.HostsUpdate, id, input),
-    exportBackup: () => ipcRenderer.invoke(IPC.HostsExport),
-    importBackup: () => ipcRenderer.invoke(IPC.HostsImport)
+    exportBackup: (options) => ipcRenderer.invoke(IPC.HostsExport, options),
+    importBackup: (options) => ipcRenderer.invoke(IPC.HostsImport, options),
+    unlockEncryptedBackup: (password: string) =>
+      ipcRenderer.invoke(IPC.HostsImportUnlock, password),
+    commitEncryptedBackup: (mode) => ipcRenderer.invoke(IPC.HostsImportCommit, mode),
+    cancelEncryptedBackup: () => ipcRenderer.invoke(IPC.HostsImportCancel),
+    getBackupStats: () => ipcRenderer.invoke(IPC.HostsBackupStats)
+  },
+
+  groups: {
+    list: (): Promise<HostGroup[]> => ipcRenderer.invoke(IPC.GroupsList),
+    create: (name: string) => ipcRenderer.invoke(IPC.GroupsCreate, name),
+    rename: (currentName: string, nextName: string) =>
+      ipcRenderer.invoke(IPC.GroupsRename, currentName, nextName),
+    delete: (name: string) => ipcRenderer.invoke(IPC.GroupsDelete, name),
+    reorder: (names: string[]) => ipcRenderer.invoke(IPC.GroupsReorder, names)
   },
 
   dialog: {
@@ -99,8 +118,8 @@ const api: RendererApi = {
       ipcRenderer.invoke(IPC.SftpRename, sessionId, oldPath, newPath),
     remove: (sessionId: string, paths: string[]): Promise<string | null> =>
       ipcRenderer.invoke(IPC.SftpRemove, sessionId, paths),
-    upload: (sessionId: string, taskId: string, localPaths: string[], remoteDir: string) =>
-      ipcRenderer.invoke(IPC.SftpUpload, sessionId, taskId, localPaths, remoteDir),
+    upload: (sessionId: string, taskId: string, items: UploadItem[], remoteDir: string) =>
+      ipcRenderer.invoke(IPC.SftpUpload, sessionId, taskId, items, remoteDir),
     download: (sessionId: string, taskId: string, items: DownloadItem[], conflict: ConflictPolicy) =>
       ipcRenderer.invoke(IPC.SftpDownload, sessionId, taskId, items, conflict),
     pickDownloadPath: (sessionId: string, suggestedName: string): Promise<string | null> =>
@@ -120,6 +139,10 @@ const api: RendererApi = {
   local: {
     home: (): Promise<string> => ipcRenderer.invoke(IPC.LocalHome),
     list: (path: string): Promise<SftpListResult> => ipcRenderer.invoke(IPC.LocalList, path),
+    mkdir: (path: string, name: string): Promise<string | null> =>
+      ipcRenderer.invoke(IPC.LocalMkdir, path, name),
+    open: (path: string): Promise<string | null> => ipcRenderer.invoke(IPC.LocalOpen, path),
+    reveal: (path: string): Promise<string | null> => ipcRenderer.invoke(IPC.LocalReveal, path),
     rename: (path: string, name: string): Promise<string | null> =>
       ipcRenderer.invoke(IPC.LocalRename, path, name),
     remove: (paths: string[]): Promise<string | null> => ipcRenderer.invoke(IPC.LocalRemove, paths)
@@ -149,6 +172,42 @@ const api: RendererApi = {
       const listener = (_e: IpcRendererEvent, settings: AppSettings) => cb(settings)
       ipcRenderer.on(IPC.SettingsChanged, listener)
       return () => ipcRenderer.removeListener(IPC.SettingsChanged, listener)
+    }
+  },
+
+  updater: {
+    getStatus: () => ipcRenderer.invoke(IPC.UpdaterGetStatus),
+    check: () => ipcRenderer.invoke(IPC.UpdaterCheck),
+    restartAndInstall: () => ipcRenderer.invoke(IPC.UpdaterRestartAndInstall),
+    onStatusChanged: (cb) => {
+      const listener = (_e: IpcRendererEvent, status: UpdateStatus) => cb(status)
+      ipcRenderer.on(IPC.UpdaterStatusChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.UpdaterStatusChanged, listener)
+    }
+  },
+
+  cloudSync: {
+    getState: () => ipcRenderer.invoke(IPC.CloudSyncGetState),
+    getConnection: () => ipcRenderer.invoke(IPC.CloudSyncGetConnection),
+    saveConnection: (input: CloudSyncConnectionInput) =>
+      ipcRenderer.invoke(IPC.CloudSyncSaveConnection, input),
+    testConnection: (input: CloudSyncConnectionInput) =>
+      ipcRenderer.invoke(IPC.CloudSyncTestConnection, input),
+    generateKey: () => ipcRenderer.invoke(IPC.CloudSyncGenerateKey),
+    copyGeneratedKey: () => ipcRenderer.invoke(IPC.CloudSyncCopyGeneratedKey),
+    setKey: (key: string) => ipcRenderer.invoke(IPC.CloudSyncSetKey, key),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke(IPC.CloudSyncSetEnabled, enabled),
+    syncNow: () => ipcRenderer.invoke(IPC.CloudSyncSyncNow),
+    clearRemote: () => ipcRenderer.invoke(IPC.CloudSyncClearRemote),
+    onStateChanged: (cb) => {
+      const listener = (_e: IpcRendererEvent, state: CloudSyncState) => cb(state)
+      ipcRenderer.on(IPC.CloudSyncStateChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.CloudSyncStateChanged, listener)
+    },
+    onApplied: (cb) => {
+      const listener = () => cb()
+      ipcRenderer.on(IPC.CloudSyncApplied, listener)
+      return () => ipcRenderer.removeListener(IPC.CloudSyncApplied, listener)
     }
   },
 

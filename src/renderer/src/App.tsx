@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import type { HostConfig, HostInput, SessionStatus } from '@shared/types'
+import type { HostConfig, HostGroup, HostInput, SessionStatus } from '@shared/types'
 import { TabBar, type PaneSide, type TabAction, type WorkspaceTab } from '@/components/TabBar'
 import { TerminalView } from '@/components/TerminalView'
 import { SessionInfoBar } from '@/components/SessionInfoBar'
@@ -11,6 +11,7 @@ import { CredentialsDialog } from '@/components/CredentialsDialog'
 import { SettingsWorkspace } from '@/components/SettingsDialog'
 import { EmptyState, type ConnectionAddress } from '@/components/EmptyState'
 import { ConnectionHub, type HostAction } from '@/components/ConnectionHub'
+import { GroupManagerDialog } from '@/components/GroupManagerDialog'
 import { Toaster } from '@/components/ui/sonner'
 import { getTerminal } from '@/lib/terminals'
 import { setSettings, useSettings } from '@/lib/settings'
@@ -37,6 +38,7 @@ export default function App() {
   const { t } = useTranslation()
   const settings = useSettings()
   const [hosts, setHosts] = useState<HostConfig[]>([])
+  const [hostGroups, setHostGroups] = useState<HostGroup[]>([])
   const [sessions, setSessions] = useState<SessionState[]>([])
   // 双窗格：right 为 null 表示未分屏；标签按 id 列表维护顺序
   const [leftTabs, setLeftTabs] = useState<string[]>([])
@@ -53,6 +55,10 @@ export default function App() {
   const [editingHost, setEditingHost] = useState<HostConfig | null>(null)
   const [keysOpen, setKeysOpen] = useState(false)
   const [connectionsOpen, setConnectionsOpen] = useState(false)
+  const [groupsOpen, setGroupsOpen] = useState(false)
+  const [groupManagerTarget, setGroupManagerTarget] = useState<string | null>(null)
+  const [groupManagerAction, setGroupManagerAction] = useState<'edit' | 'delete' | null>(null)
+  const [initialConnectionGroup, setInitialConnectionGroup] = useState<string | null>(null)
   const [connectionAddress, setConnectionAddress] = useState<ConnectionAddress | null>(null)
 
   const panesRef = useRef<HTMLDivElement>(null)
@@ -69,6 +75,15 @@ export default function App() {
 
   useEffect(() => {
     window.api.hosts.list().then(setHosts)
+    window.api.groups.list().then(setHostGroups)
+  }, [])
+
+  // 云同步拉取应用了远端变更时，重新加载主机列表保持侧栏一致
+  useEffect(() => {
+    return window.api.cloudSync.onApplied(() => {
+      window.api.hosts.list().then(setHosts)
+      window.api.groups.list().then(setHostGroups)
+    })
   }, [])
 
   /** 清理某会话的重连计时器与计数 */
@@ -371,8 +386,10 @@ export default function App() {
       try {
         const saved = await window.api.hosts.add(input)
         setHosts((prev) => [...prev, saved])
+        window.api.groups.list().then(setHostGroups)
         setDialogOpen(false)
         setConnectionAddress(null)
+        setInitialConnectionGroup(null)
         connectHost(saved)
       } catch (err) {
         toast.error(t('toast.saveHostFailed', { message: err instanceof Error ? err.message : String(err) }))
@@ -387,6 +404,7 @@ export default function App() {
       try {
         const updated = await window.api.hosts.update(id, input)
         setHosts((prev) => prev.map((h) => (h.id === id ? updated : h)))
+        window.api.groups.list().then(setHostGroups)
         // 同步刷新已打开会话里的主机信息（标签标题等）
         setSessions((prev) =>
           prev.map((s) => (s.host.id === id ? { ...s, host: updated } : s))
@@ -413,6 +431,64 @@ export default function App() {
     },
     [t]
   )
+
+  const handleCreateGroup = useCallback(async (name: string) => {
+    try {
+      const created = await window.api.groups.create(name)
+      setHostGroups((current) => [...current, created])
+      toast.success(t('toast.groupCreated'))
+      return true
+    } catch (err) {
+      toast.error(t('toast.groupFailed', { message: err instanceof Error ? err.message : String(err) }))
+      return false
+    }
+  }, [t])
+
+  const handleRenameGroup = useCallback(async (currentName: string, nextName: string) => {
+    try {
+      await window.api.groups.rename(currentName, nextName)
+      const [nextGroups, nextHosts] = await Promise.all([window.api.groups.list(), window.api.hosts.list()])
+      setHostGroups(nextGroups)
+      setHosts(nextHosts)
+      setSessions((current) => current.map((session) => ({
+        ...session,
+        host: nextHosts.find((host) => host.id === session.host.id) ?? session.host
+      })))
+      toast.success(t('toast.groupRenamed'))
+      return true
+    } catch (err) {
+      toast.error(t('toast.groupFailed', { message: err instanceof Error ? err.message : String(err) }))
+      return false
+    }
+  }, [t])
+
+  const handleDeleteGroup = useCallback(async (name: string) => {
+    try {
+      await window.api.groups.delete(name)
+      const [nextGroups, nextHosts] = await Promise.all([window.api.groups.list(), window.api.hosts.list()])
+      setHostGroups(nextGroups)
+      setHosts(nextHosts)
+      setSessions((current) => current.map((session) => ({
+        ...session,
+        host: nextHosts.find((host) => host.id === session.host.id) ?? session.host
+      })))
+      toast.success(t('toast.groupDeleted'))
+      return true
+    } catch (err) {
+      toast.error(t('toast.groupFailed', { message: err instanceof Error ? err.message : String(err) }))
+      return false
+    }
+  }, [t])
+
+  const handleReorderGroups = useCallback(async (names: string[]) => {
+    try {
+      setHostGroups(await window.api.groups.reorder(names))
+      return true
+    } catch (err) {
+      toast.error(t('toast.groupFailed', { message: err instanceof Error ? err.message : String(err) }))
+      return false
+    }
+  }, [t])
 
   /** 主机右键菜单动作分发；连接管理来源在编辑完成后返回连接列表。 */
   const handleHostAction = useCallback(
@@ -564,7 +640,7 @@ export default function App() {
               <EmptyState
                 hosts={hosts}
                 sessionHostIds={sessionHostIds}
-                showHeaderActions={false}
+                showConnectionsAction={false}
                 onConnect={connectHost}
                 onHostAction={handleRecentHostAction}
                 onNewConnection={(address) => {
@@ -581,6 +657,10 @@ export default function App() {
             <div className={cn('absolute inset-0', !activeIsSettings && 'hidden')}>
               <SettingsWorkspace
                 onHostsImported={async () => setHosts(await window.api.hosts.list())}
+                activeSessions={
+                  sessions.filter((s) => s.status === 'connecting' || s.status === 'connected')
+                    .length
+                }
               />
             </div>
           )}
@@ -620,7 +700,7 @@ export default function App() {
           <EmptyState
             hosts={hosts}
             sessionHostIds={sessionHostIds}
-            showHeaderActions
+            showConnectionsAction
             onConnect={connectHost}
             onHostAction={handleRecentHostAction}
             onNewConnection={(address) => {
@@ -659,6 +739,7 @@ export default function App() {
             if (connectionDialogFromHub) setConnectionsOpen(true)
             setEditingHost(null)
             setConnectionAddress(null)
+            setInitialConnectionGroup(null)
             setConnectionDialogFromHub(false)
           }
         }}
@@ -669,15 +750,18 @@ export default function App() {
                 setConnectionsOpen(true)
                 setEditingHost(null)
                 setConnectionAddress(null)
+                setInitialConnectionGroup(null)
                 setConnectionDialogFromHub(false)
               }
             : undefined
         }
         host={editingHost}
         initialAddress={connectionAddress}
+        initialGroup={initialConnectionGroup}
         onSubmit={handleNewConnection}
         onUpdate={handleUpdateHost}
         existingHosts={hosts}
+        availableGroups={hostGroups.map((group) => group.name)}
       />
       <CredentialsDialog
         open={keysOpen}
@@ -691,17 +775,49 @@ export default function App() {
         open={connectionsOpen}
         onOpenChange={setConnectionsOpen}
         hosts={hosts}
+        hostGroups={hostGroups}
         sessionHostIds={sessionHostIds}
         activeHostId={activeHostId}
         onConnect={connectHost}
-        onNewConnection={() => {
+        onNewConnection={(group) => {
           setConnectionAddress(null)
+          setInitialConnectionGroup(group ?? null)
           setEditingHost(null)
           setConnectionDialogFromHub(true)
           setDialogOpen(true)
         }}
         onOpenCredentials={() => setKeysOpen(true)}
+        onOpenGroups={(group, action) => {
+          setConnectionsOpen(false)
+          setGroupManagerTarget(group ?? null)
+          setGroupManagerAction(action ?? null)
+          setGroupsOpen(true)
+        }}
         onAction={handleHostAction}
+      />
+      <GroupManagerDialog
+        open={groupsOpen}
+        onOpenChange={(open) => {
+          setGroupsOpen(open)
+          if (!open) {
+            setGroupManagerTarget(null)
+            setGroupManagerAction(null)
+          }
+        }}
+        onBack={() => {
+          setGroupsOpen(false)
+          setGroupManagerTarget(null)
+          setGroupManagerAction(null)
+          setConnectionsOpen(true)
+        }}
+        groups={hostGroups}
+        hosts={hosts}
+        initialGroup={groupManagerTarget}
+        initialAction={groupManagerAction}
+        onCreate={handleCreateGroup}
+        onRename={handleRenameGroup}
+        onDelete={handleDeleteGroup}
+        onReorder={handleReorderGroups}
       />
       <Toaster />
     </div>

@@ -3,24 +3,21 @@ import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
-/**
- * 按钮：shadcn 结构，视觉对齐原型（2px 圆角、细描边、JetBrains Mono）。
- * ghost-dark 对应原型 .btn-ghost-dark，solid-dark 对应 .btn-solid-dark。
- */
+/** shadcn Button：白色主操作、深色次操作、红色危险操作。 */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-mono text-xs rounded-sm border outline-none cursor-pointer transition-[border-color,color,background] duration-100 disabled:opacity-40 disabled:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0",
+  "inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm border px-3 font-sans text-sm font-medium tracking-normal outline-none transition-[border-color,color,background-color,box-shadow] duration-100 focus-visible:ring-[3px] focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        ghost:
-          'border-line bg-transparent text-faint hover:border-white/15 hover:text-fg',
-        solid: 'border-white/25 bg-white/[0.06] text-fg hover:bg-white/10',
-        icon: 'border-transparent bg-transparent text-[#444] hover:text-fg hover:bg-white/5'
+        ghost: 'border-line bg-surface text-body hover:border-white/20 hover:bg-accent hover:text-fg',
+        solid: 'border-primary bg-primary text-primary-foreground hover:border-primary-hover hover:bg-primary-hover',
+        danger: 'border-danger/40 bg-surface text-red-400 hover:border-danger/60 hover:bg-red-400/10 hover:text-red-300',
+        icon: 'border-line bg-surface p-0 text-dim hover:border-white/20 hover:bg-accent hover:text-fg'
       },
       size: {
-        sm: 'px-2 py-1 text-[11px]',
-        md: 'px-3.5 py-2',
-        icon: 'p-1'
+        sm: 'h-9 px-3 text-sm',
+        md: 'h-9 px-3',
+        icon: 'size-9 p-0'
       }
     },
     defaultVariants: {
@@ -42,6 +39,7 @@ function Button({
   return (
     <Comp
       data-slot="button"
+      data-variant={variant ?? 'ghost'}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

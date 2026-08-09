@@ -1,6 +1,6 @@
 // M4 验收：凭证管理（Ed25519 真实生成并登录 / 导入 / 引用删除拦截）、
 // 密码库（safeStorage 密文落盘 + 连接弹窗下拉联动）、
-// Settings（字号 / 光标 / 回滚实时生效 + 重启保持）、中英文切换（无漏翻抽查 + 终端不受影响）、关于区块。
+// Settings（终端显示与交互偏好实时生效 + 重启保持）、中英文切换（无漏翻抽查 + 终端不受影响）、关于区块。
 // 全部针对真实 Docker 容器，无 mock。
 import { execSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -57,7 +57,23 @@ const waitFor = async (expr, timeoutMs = 15000, interval = 300) => {
 const clickHost = async (label) => {
   await ev2(`document.querySelector('button[title="配置和连接"], button[title="Connections"]')?.click()`)
   await sleep(300)
-  return ev2(`[...document.querySelectorAll('[data-connection-host]')].find(h => h.textContent.includes(${JSON.stringify(label)}))?.click()`)
+  let clicked = await ev2(`(() => {
+    const host = [...document.querySelectorAll('[data-connection-host]')].find(h => h.textContent.includes(${JSON.stringify(label)}))
+    if (!host) return false
+    host.click()
+    return true
+  })()`)
+  if (!clicked) {
+    await ev2(`[...document.querySelectorAll('[data-connection-group]')].forEach(group => group.click())`)
+    await sleep(300)
+    clicked = await ev2(`(() => {
+      const host = [...document.querySelectorAll('[data-connection-host]')].find(h => h.textContent.includes(${JSON.stringify(label)}))
+      if (!host) return false
+      host.click()
+      return true
+    })()`)
+  }
+  return clicked
 }
 const setInput = (selector, value) => `(() => {
   const input = ${selector}
@@ -86,7 +102,10 @@ await waitFor(`document.body.textContent.includes('凭证管理')`, 8000)
 const nameOk = await ev2(setInput(`document.querySelector('input[placeholder*="work-laptop"]')`, 'm4验收密钥'))
 check('凭证弹窗打开并输入密钥名称', nameOk)
 await ev2(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '生成')?.click()`)
-const keyRowShown = await waitFor(`!!document.querySelector('.cred-key-row')`, 15000)
+const keyRowShown = await waitFor(
+  `(async () => (await window.api.creds.listKeys()).some(k => k.name === 'm4验收密钥'))()`,
+  15000
+)
 check('生成 Ed25519 密钥出现在列表', keyRowShown)
 const genKey = await ev2(`(async () => (await window.api.creds.listKeys()).find(k => k.name === 'm4验收密钥'))()`)
 check('生成的密钥含 SHA256 指纹与公钥', !!genKey && genKey.fingerprint.startsWith('SHA256:') && genKey.publicKey.startsWith('ssh-ed25519'), JSON.stringify(genKey?.fingerprint))
@@ -186,11 +205,10 @@ await ev2(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', 
 await sleep(300)
 await ev2(`document.querySelector('button[title="新建连接"]')?.click()`)
 await waitFor(`document.body.textContent.includes('NEW CONNECTION')`, 8000)
-// Radix Tabs 在 mousedown 时激活（click 不触发）
-await ev2(`[...document.querySelectorAll('[role="tab"]')].find(t => t.textContent.trim() === 'Password')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }))`)
+await ev2(`[...document.querySelectorAll('[role="tab"]')].find(t => ['Password', '密码'].includes(t.textContent.trim()))?.click()`)
 await sleep(300)
 const pwDropdown = await ev2(`(() => {
-  const selects = [...document.querySelectorAll('select')]
+  const selects = [...document.querySelectorAll('select')].filter(el => el.offsetParent !== null)
   const src = selects[0]
   if (!src) return null
   src.value = 'store'
@@ -199,7 +217,7 @@ const pwDropdown = await ev2(`(() => {
 })()`)
 await sleep(400)
 const pwOption = await ev2(`(() => {
-  const selects = [...document.querySelectorAll('select')]
+  const selects = [...document.querySelectorAll('select')].filter(el => el.offsetParent !== null)
   const storeSelect = selects[1]
   if (!storeSelect) return null
   return [...storeSelect.options].map(o => o.textContent)
@@ -217,31 +235,77 @@ const delPwErr = await ev2(`(async () => window.api.creds.deletePassword('${pwMe
 check('删除被引用密码被拦截并提示主机', typeof delPwErr === 'string' && delPwErr.includes('m4-密码库'), String(delPwErr))
 
 // ============================================================
-// 5. Settings：字号 / 光标 / 回滚实时生效 + 重载保持
+// 5. Settings：终端显示与交互偏好实时生效 + 重载保持
 // ============================================================
 // 先连一台主机造出终端实例
-await clickHost('本地-密码')
-await waitFor(`${TABBAR}.querySelectorAll('.group').length >= 1`, 10000)
+await clickHost('apex@127.0.0.1')
+await waitFor(`window.__terminals?.size >= 1`, 10000)
 await sleep(1500)
 const termSid = await ev2(`[...window.__terminals.keys()][0]`)
 
-await ev2(`window.api.settings.set({ fontSize: 18, cursorStyle: 'bar', scrollback: 1000 })`)
+await ev2(`window.api.settings.set({
+  fontSize: 18,
+  cursorStyle: 'bar',
+  cursorBlink: false,
+  scrollback: 1000,
+  scrollOnInput: false,
+  copyOnSelect: true,
+  confirmMultilinePaste: true
+})`)
 await sleep(600)
 const applied = await ev2(`(() => {
   const t = window.__terminals.get('${termSid}').term
   const rowFont = getComputedStyle(document.querySelector('.terminal-instance:not(.hidden) .xterm-rows')).fontSize
-  return { fontSize: t.options.fontSize, cursor: t.options.cursorStyle, scrollback: t.options.scrollback, rowFont }
+  return {
+    fontSize: t.options.fontSize,
+    cursor: t.options.cursorStyle,
+    cursorBlink: t.options.cursorBlink,
+    scrollback: t.options.scrollback,
+    scrollOnInput: t.options.scrollOnUserInput,
+    rowFont
+  }
 })()`)
 check('字号 18 实时生效（options + DOM）', applied.fontSize === 18 && applied.rowFont === '18px', JSON.stringify(applied))
 check('光标样式 bar 实时生效', applied.cursor === 'bar')
+check('光标闪烁关闭实时生效', applied.cursorBlink === false)
 check('回滚行数 1000 实时生效', applied.scrollback === 1000)
+check('输入时滚至底部关闭实时生效', applied.scrollOnInput === false)
+
+await ev2(`window.api.clipboard.writeText('__before_selection__')`)
+await ev2(`window.__terminals.get('${termSid}').term.selectAll()`)
+await sleep(300)
+const copiedSelection = await ev2(`window.api.clipboard.readText()`)
+check('选中即复制写入系统剪贴板', copiedSelection !== '__before_selection__' && copiedSelection.length > 0, copiedSelection)
+await ev2(`window.__terminals.get('${termSid}').term.clearSelection()`)
+
+await ev2(`window.api.clipboard.writeText('echo first\\necho second\\npwd')`)
+await ev2(`(() => {
+  const terminal = document.querySelector('.terminal-instance:not(.hidden)')
+  terminal?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, view: window }))
+  return Boolean(terminal)
+})()`)
+await sleep(300)
+await ev2(`[...document.querySelectorAll('[role="menuitem"]')].find(i => i.textContent.includes('粘贴'))?.click()`)
+const pasteConfirmVisible = await waitFor(`document.body.textContent.includes('粘贴多行内容') && document.body.textContent.includes('3 行')`, 3000)
+check('多行粘贴显示内容预览确认', pasteConfirmVisible)
+await ev2(`[...document.querySelectorAll('button')].find(b => b.textContent.trim() === '取消')?.click()`)
 
 // 重载页面（读取持久化设置）→ 设置保持
 await ev2(`location.reload()`)
 await sleep(3000)
 await connectCdp()
 const persisted = await ev2(`(async () => window.api.settings.get())()`)
-check('重载后设置保持（持久化）', persisted.fontSize === 18 && persisted.cursorStyle === 'bar' && persisted.scrollback === 1000, JSON.stringify(persisted))
+check(
+  '重载后设置保持（持久化）',
+  persisted.fontSize === 18 &&
+    persisted.cursorStyle === 'bar' &&
+    persisted.cursorBlink === false &&
+    persisted.scrollback === 1000 &&
+    persisted.scrollOnInput === false &&
+    persisted.copyOnSelect === true &&
+    persisted.confirmMultilinePaste === true,
+  JSON.stringify(persisted)
+)
 
 // ============================================================
 // 6. 中英文切换：即时生效 + 终端输出不受界面语言影响
@@ -294,7 +358,15 @@ await ev2(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', 
 // ============================================================
 // 清理：恢复默认设置、删除验收主机与凭证
 // ============================================================
-await ev2(`window.api.settings.set({ fontSize: 13, cursorStyle: 'block', scrollback: 5000 })`)
+await ev2(`window.api.settings.set({
+  fontSize: 13,
+  cursorStyle: 'block',
+  cursorBlink: true,
+  scrollback: 5000,
+  scrollOnInput: true,
+  copyOnSelect: false,
+  confirmMultilinePaste: true
+})`)
 await ev2(`(async () => {
   const hosts = await window.api.hosts.list()
   for (const h of hosts) if (h.label.startsWith('m4-')) await window.api.hosts.delete(h.id)

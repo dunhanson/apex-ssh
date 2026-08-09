@@ -15,6 +15,10 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import type { KeyEntry, PasswordMeta } from '@shared/types'
+import type {
+  CompleteKeyCredential,
+  CompletePasswordCredential
+} from './encrypted-backup'
 import { listHosts } from './hosts'
 
 /**
@@ -27,6 +31,8 @@ const execFileAsync = promisify(execFile)
 interface KeyRecord extends KeyEntry {
   /** userData/keys/ 下的私钥文件名（不含目录） */
   file: string
+  /** 私钥口令的 safeStorage 密文；只在主进程连接或完整备份时解密 */
+  passphraseBlob?: string
 }
 
 interface PasswordRecord extends PasswordMeta {
@@ -76,7 +82,11 @@ async function restrictPrivateKeyPermissions(privPath: string): Promise<void> {
 }
 
 export function listKeys(): KeyEntry[] {
-  return allKeys().map(({ file: _file, ...meta }) => meta)
+  return allKeys().map(toKeyEntry)
+}
+
+function toKeyEntry({ file: _file, passphraseBlob: _passphraseBlob, ...meta }: KeyRecord): KeyEntry {
+  return meta
 }
 
 /** 生成 Ed25519 密钥对（系统 ssh-keygen，Windows 10+ 自带 OpenSSH 客户端） */
@@ -96,8 +106,7 @@ export async function generateKey(name: string): Promise<{ entry: KeyEntry } | {
       createdAt: Date.now()
     }
     store.set('keys', [...allKeys(), record])
-    const { file: _file, ...entry } = record
-    return { entry }
+    return { entry: toKeyEntry(record) }
   } catch (err) {
     rmSync(privPath, { force: true })
     rmSync(`${privPath}.pub`, { force: true })
@@ -127,8 +136,7 @@ export async function importKey(
       createdAt: Date.now()
     }
     store.set('keys', [...allKeys(), record])
-    const { file: _file, ...entry } = record
-    return { entry }
+    return { entry: toKeyEntry(record) }
   } catch (err) {
     rmSync(privPath, { force: true })
     rmSync(`${privPath}.pub`, { force: true })
@@ -210,14 +218,15 @@ export async function replaceKey(
     const nextRecord: KeyRecord = {
       ...record,
       fingerprint,
-      publicKey: pub.trim()
+      publicKey: pub.trim(),
+      hasPassphrase: false,
+      passphraseBlob: undefined
     }
     keys[index] = nextRecord
     store.set('keys', keys)
     removeFileQuietly(backupPriv)
     removeFileQuietly(backupPub)
-    const { file: _file, ...entry } = nextRecord
-    return { entry }
+    return { entry: toKeyEntry(nextRecord) }
   } catch (err) {
     removeFileQuietly(candidatePriv)
     removeFileQuietly(candidatePub)
@@ -319,4 +328,261 @@ export function resolvePassword(id: string): string | null {
 export function resolveKeyPath(id: string): string | null {
   const record = allKeys().find((k) => k.id === id)
   return record ? join(keysDir(), record.file) : null
+}
+
+/** 连接时取密钥口令（仅主进程内部使用）。 */
+export function resolveKeyPassphrase(id: string): string | null {
+  const record = allKeys().find((key) => key.id === id)
+  if (!record?.passphraseBlob) return null
+  try {
+    return safeStorage.decryptString(Buffer.from(record.passphraseBlob, 'base64'))
+  } catch {
+    return null
+  }
+}
+
+export function exportPasswordCredential(id: string): CompletePasswordCredential | null {
+  const record = allPasswords().find((entry) => entry.id === id)
+  if (!record) return null
+  const password = resolvePassword(id)
+  if (password === null) return null
+  return { id: record.id, label: record.label, password, createdAt: record.createdAt }
+}
+
+export function exportKeyCredential(
+  id: string,
+  passphraseOverride?: string
+): CompleteKeyCredential | null {
+  const record = allKeys().find((entry) => entry.id === id)
+  if (!record) return null
+  try {
+    return {
+      id: record.id,
+      name: record.name,
+      privateKey: readFileSync(join(keysDir(), record.file), 'utf8'),
+      ...(passphraseOverride || resolveKeyPassphrase(id)
+        ? { passphrase: passphraseOverride || resolveKeyPassphrase(id) || undefined }
+        : {}),
+      createdAt: record.createdAt
+    }
+  } catch {
+    return null
+  }
+}
+
+export interface CredentialImportResult {
+  passwordIdMap: Map<string, string>
+  keyIdMap: Map<string, string>
+  createdPasswordIds: string[]
+  createdKeyIds: string[]
+}
+
+interface PreparedKey {
+  record: KeyRecord
+  candidatePrivate: string
+  candidatePublic: string
+  finalPrivate: string
+  finalPublic: string
+}
+
+/**
+ * 完整验证所有凭证后再提交。冲突条目只新增并返回 ID 映射，不覆盖本地凭证。
+ * 私钥候选文件在提交前不会成为密钥库正式文件。
+ */
+export async function importCompleteCredentials(
+  passwords: CompletePasswordCredential[],
+  keys: CompleteKeyCredential[]
+): Promise<CredentialImportResult> {
+  const existingPasswords = allPasswords()
+  const existingKeys = allKeys()
+  const nextPasswords = [...existingPasswords]
+  const nextKeys = [...existingKeys]
+  const passwordIdMap = new Map<string, string>()
+  const keyIdMap = new Map<string, string>()
+  const createdPasswordIds: string[] = []
+  const createdKeyIds: string[] = []
+  const preparedKeys: PreparedKey[] = []
+  const installedFiles: string[] = []
+
+  try {
+    for (const incoming of passwords) {
+      const conflict = existingPasswords.find((entry) => entry.id === incoming.id)
+      if (conflict && resolvePassword(conflict.id) === incoming.password) {
+        passwordIdMap.set(incoming.id, conflict.id)
+        continue
+      }
+      const id = conflict ? randomUUID() : incoming.id
+      nextPasswords.push({
+        id,
+        label: incoming.label,
+        blob: safeStorage.encryptString(incoming.password).toString('base64'),
+        createdAt: incoming.createdAt || Date.now()
+      })
+      passwordIdMap.set(incoming.id, id)
+      createdPasswordIds.push(id)
+    }
+
+    for (const incoming of keys) {
+      const token = randomUUID()
+      const candidatePrivate = join(keysDir(), `.import-${token}`)
+      const candidatePublic = `${candidatePrivate}.pub`
+      writeFileSync(candidatePrivate, incoming.privateKey, { mode: 0o600 })
+      await restrictPrivateKeyPermissions(candidatePrivate)
+      const { stdout: publicKey } = await execFileAsync('ssh-keygen', [
+        '-y',
+        '-P',
+        incoming.passphrase ?? '',
+        '-f',
+        candidatePrivate
+      ])
+      writeFileSync(candidatePublic, `${publicKey.trim()}\n`, { mode: 0o600 })
+      const fingerprint = await fingerprintOf(candidatePublic)
+      const conflict = existingKeys.find((entry) => entry.id === incoming.id)
+      if (conflict && conflict.fingerprint === fingerprint) {
+        removeFileQuietly(candidatePrivate)
+        removeFileQuietly(candidatePublic)
+        keyIdMap.set(incoming.id, conflict.id)
+        continue
+      }
+
+      const id = conflict ? randomUUID() : incoming.id
+      const file = randomUUID()
+      const finalPrivate = join(keysDir(), file)
+      const finalPublic = `${finalPrivate}.pub`
+      const record: KeyRecord = {
+        id,
+        name: incoming.name,
+        fingerprint,
+        publicKey: publicKey.trim(),
+        hasPassphrase: !!incoming.passphrase,
+        ...(incoming.passphrase
+          ? { passphraseBlob: safeStorage.encryptString(incoming.passphrase).toString('base64') }
+          : {}),
+        file,
+        createdAt: incoming.createdAt || Date.now()
+      }
+      preparedKeys.push({ record, candidatePrivate, candidatePublic, finalPrivate, finalPublic })
+      nextKeys.push(record)
+      keyIdMap.set(incoming.id, id)
+      createdKeyIds.push(id)
+    }
+
+    for (const prepared of preparedKeys) {
+      renameSync(prepared.candidatePrivate, prepared.finalPrivate)
+      installedFiles.push(prepared.finalPrivate)
+      renameSync(prepared.candidatePublic, prepared.finalPublic)
+      installedFiles.push(prepared.finalPublic)
+    }
+    store.set('keys', nextKeys)
+    store.set('passwords', nextPasswords)
+    return { passwordIdMap, keyIdMap, createdPasswordIds, createdKeyIds }
+  } catch (error) {
+    for (const prepared of preparedKeys) {
+      removeFileQuietly(prepared.candidatePrivate)
+      removeFileQuietly(prepared.candidatePublic)
+    }
+    for (const path of installedFiles) removeFileQuietly(path)
+    store.set('keys', existingKeys)
+    store.set('passwords', existingPasswords)
+    throw error
+  }
+}
+
+/** 主机写入失败时撤销本次新建的凭证；现有凭证从未被覆盖。 */
+export function rollbackImportedCredentials(result: CredentialImportResult): void {
+  const keyIds = new Set(result.createdKeyIds)
+  for (const record of allKeys()) {
+    if (!keyIds.has(record.id)) continue
+    removeFileQuietly(join(keysDir(), record.file))
+    removeFileQuietly(join(keysDir(), `${record.file}.pub`))
+  }
+  store.set('keys', allKeys().filter((entry) => !keyIds.has(entry.id)))
+  const passwordIds = new Set(result.createdPasswordIds)
+  store.set('passwords', allPasswords().filter((entry) => !passwordIds.has(entry.id)))
+}
+
+/**
+ * 仅供云同步：按记录整体覆盖写入密码（后写胜出）。
+ * 明文只在主进程内存中短暂存在，落盘前经 safeStorage 加密。
+ */
+export function upsertPasswordForSync(entry: CompletePasswordCredential): void {
+  const passwords = allPasswords()
+  const index = passwords.findIndex((existing) => existing.id === entry.id)
+  const record: PasswordRecord = {
+    id: entry.id,
+    label: entry.label,
+    blob: safeStorage.encryptString(entry.password).toString('base64'),
+    createdAt: entry.createdAt || Date.now()
+  }
+  if (index === -1) passwords.push(record)
+  else passwords[index] = record
+  store.set('passwords', passwords)
+}
+
+/**
+ * 仅供云同步：按记录整体覆盖写入密钥（后写胜出）。
+ * 私钥先写候选文件并完成公钥 / 指纹校验，通过后才原子替换正式文件；
+ * 校验失败时保留原私钥与元数据。
+ */
+export async function upsertKeyForSync(entry: CompleteKeyCredential): Promise<void> {
+  const keys = allKeys()
+  const index = keys.findIndex((existing) => existing.id === entry.id)
+  const existing = index >= 0 ? keys[index] : null
+  const file = existing?.file ?? randomUUID()
+  const finalPrivate = join(keysDir(), file)
+  const finalPublic = `${finalPrivate}.pub`
+  const token = randomUUID()
+  const candidatePrivate = join(keysDir(), `.sync-${token}`)
+  const candidatePublic = `${candidatePrivate}.pub`
+
+  writeFileSync(candidatePrivate, entry.privateKey, { mode: 0o600 })
+  try {
+    await restrictPrivateKeyPermissions(candidatePrivate)
+    const { stdout: publicKey } = await execFileAsync('ssh-keygen', [
+      '-y',
+      '-P',
+      entry.passphrase ?? '',
+      '-f',
+      candidatePrivate
+    ])
+    writeFileSync(candidatePublic, `${publicKey.trim()}\n`, { mode: 0o600 })
+    const fingerprint = await fingerprintOf(candidatePublic)
+
+    renameSync(candidatePrivate, finalPrivate)
+    renameSync(candidatePublic, finalPublic)
+    const record: KeyRecord = {
+      id: entry.id,
+      name: entry.name,
+      fingerprint,
+      publicKey: publicKey.trim(),
+      hasPassphrase: !!entry.passphrase,
+      ...(entry.passphrase
+        ? { passphraseBlob: safeStorage.encryptString(entry.passphrase).toString('base64') }
+        : {}),
+      file,
+      createdAt: entry.createdAt || Date.now()
+    }
+    if (index === -1) keys.push(record)
+    else keys[index] = record
+    store.set('keys', keys)
+  } catch (error) {
+    removeFileQuietly(candidatePrivate)
+    removeFileQuietly(candidatePublic)
+    throw error
+  }
+}
+
+/** 仅供云同步：删除远端已删除的密码记录（不做引用检查，调用方保证顺序）。 */
+export function deletePasswordForSync(id: string): void {
+  store.set('passwords', allPasswords().filter((entry) => entry.id !== id))
+}
+
+/** 仅供云同步：删除远端已删除的密钥记录并清理私钥文件。 */
+export function deleteKeyForSync(id: string): void {
+  const record = allKeys().find((entry) => entry.id === id)
+  if (record) {
+    removeFileQuietly(join(keysDir(), record.file))
+    removeFileQuietly(join(keysDir(), `${record.file}.pub`))
+  }
+  store.set('keys', allKeys().filter((entry) => entry.id !== id))
 }
