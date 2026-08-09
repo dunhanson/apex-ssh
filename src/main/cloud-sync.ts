@@ -245,6 +245,8 @@ function sortValue(value: unknown): unknown {
 
 /** 使用同步密钥生成规范化业务数据的 HMAC，作为本地变更检测的依据。 */
 function hashRecordData(data: unknown, syncKey: string): string {
+  // HMAC 使用同步密钥作为密钥，摘要只保存在本地 shadow 状态，不是密码存储哈希。
+  // codeql[js/insufficient-password-hash]
   return createHmac('sha256', syncKey).update(JSON.stringify(sortValue(data))).digest('hex')
 }
 
