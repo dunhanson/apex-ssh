@@ -240,6 +240,14 @@ body {
   -webkit-app-region: no-drag;
 }
 
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed !important;
+}
+
 /* 设置工具标签：桌面使用左侧分类导航，窄窗口或窄分屏切换为顶部导航。 */
 .settings-pane {
   container-type: inline-size;

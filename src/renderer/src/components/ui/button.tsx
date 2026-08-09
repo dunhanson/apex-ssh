@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 
 /** shadcn Button：白色主操作、深色次操作、红色危险操作。 */
 const buttonVariants = cva(
-  "inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm border px-3 font-sans text-sm font-medium tracking-normal outline-none transition-[border-color,color,background-color,box-shadow] duration-100 focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0",
+  "inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm border px-3 font-sans text-sm font-medium tracking-normal outline-none transition-[border-color,color,background-color,box-shadow] duration-100 focus-visible:ring-[3px] focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
