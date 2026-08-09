@@ -1,6 +1,6 @@
 import Store from 'electron-store'
 import { BrowserWindow, clipboard, ipcMain, safeStorage } from 'electron'
-import { createHash } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 import type {
   CloudSyncConnectionInput,
   CloudSyncConnectionView,
@@ -243,9 +243,9 @@ function sortValue(value: unknown): unknown {
   return value
 }
 
-/** 规范化业务数据的 SHA-256，作为本地变更检测的依据 */
-function hashRecordData(data: unknown): string {
-  return createHash('sha256').update(JSON.stringify(sortValue(data))).digest('hex')
+/** 使用同步密钥生成规范化业务数据的 HMAC，作为本地变更检测的依据。 */
+function hashRecordData(data: unknown, syncKey: string): string {
+  return createHmac('sha256', syncKey).update(JSON.stringify(sortValue(data))).digest('hex')
 }
 
 interface CollectedRecord {
@@ -260,11 +260,11 @@ interface CollectedRecord {
  * 直填密码与本地路径私钥按确定性 ID（direct-<hostId>）迁移为载荷内凭证引用，
  * 与加密完整备份语义一致；createdAt 固定为 0 保证散列稳定。
  */
-function collectLocalRecords(): Map<string, CollectedRecord> {
+function collectLocalRecords(syncKey: string): Map<string, CollectedRecord> {
   const records = new Map<string, CollectedRecord>()
   const collect = (recordId: string, kind: SyncRecordKind, data: unknown): void => {
     if (records.has(recordId)) return
-    records.set(recordId, { recordId, kind, hash: hashRecordData(data), data })
+    records.set(recordId, { recordId, kind, hash: hashRecordData(data, syncKey), data })
   }
 
   for (const host of listHosts()) {
@@ -524,7 +524,7 @@ export async function syncNow(): Promise<string | null> {
     const { client, syncKey } = await openVerifiedClient()
     try {
       const remoteRows = await fetchRemoteRows(client)
-      const localRecords = collectLocalRecords()
+      const localRecords = collectLocalRecords(syncKey)
       const localEntries: LocalSyncEntry[] = [...localRecords.values()].map(
         ({ recordId, kind, hash }) => ({ recordId, kind, hash })
       )
@@ -562,17 +562,17 @@ export async function syncNow(): Promise<string | null> {
             const entry = asSyncPassword(payload.data)
             if (!entry) throw new Error('密码记录无效')
             upsertPasswordForSync(entry)
-            markPulled(shadow, action.recordId, hashRecordData(entry), row.updatedAt)
+            markPulled(shadow, action.recordId, hashRecordData(entry, syncKey), row.updatedAt)
           } else if (action.kind === 'key') {
             const entry = asSyncKey(payload.data)
             if (!entry) throw new Error('密钥记录无效')
             await upsertKeyForSync(entry)
-            markPulled(shadow, action.recordId, hashRecordData(entry), row.updatedAt)
+            markPulled(shadow, action.recordId, hashRecordData(entry, syncKey), row.updatedAt)
           } else {
             const host = asSyncHost(payload.data)
             if (!host) throw new Error('主机记录无效')
             upsertHostForSync(host)
-            markPulled(shadow, action.recordId, hashRecordData(host), row.updatedAt)
+            markPulled(shadow, action.recordId, hashRecordData(host, syncKey), row.updatedAt)
           }
           result.pulled += 1
           appliedRemoteChanges = true
