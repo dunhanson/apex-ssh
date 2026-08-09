@@ -6,11 +6,17 @@ import type { ConflictPolicy, DetachedSessionInfo, DownloadItem, HostConfig, Hos
 import { IPC } from '@shared/types'
 import {
   addHost,
+  createGroup,
   createHostBackup,
+  deleteGroup,
   deleteHost,
   importHosts,
+  importGroups,
   listHosts,
+  listGroups,
   parseHostBackup,
+  renameGroup,
+  reorderGroups,
   updateHost
 } from './hosts'
 import { clearRecents, listRecents, removeRecent } from './recents'
@@ -242,7 +248,9 @@ function registerIpc(): void {
       noLink: true
     })
     if (confirmation.response === 0) return { status: 'cancelled', count: 0 }
-    const result = importHosts(backup.hosts, confirmation.response === 2 ? 'replace' : 'merge')
+    const importMode = confirmation.response === 2 ? 'replace' : 'merge'
+    const result = importHosts(backup.hosts, importMode)
+    importGroups(backup.groups, importMode)
     notifyLocalChange()
     const localKeyIds = new Set(creds.listKeys().map((entry) => entry.id))
     const localPasswordIds = new Set(creds.listPasswords().map((entry) => entry.id))
@@ -293,6 +301,19 @@ function registerIpc(): void {
     clearPendingEncryptedImport(e.sender.id)
   })
   ipcMain.handle(IPC.HostsBackupStats, () => getCompleteBackupStats())
+
+  ipcMain.handle(IPC.GroupsList, () => listGroups())
+  ipcMain.handle(IPC.GroupsCreate, (_e, name: string) => createGroup(name))
+  ipcMain.handle(IPC.GroupsRename, (_e, currentName: string, nextName: string) => {
+    const group = renameGroup(currentName, nextName)
+    notifyLocalChange()
+    return group
+  })
+  ipcMain.handle(IPC.GroupsDelete, (_e, name: string) => {
+    deleteGroup(name)
+    notifyLocalChange()
+  })
+  ipcMain.handle(IPC.GroupsReorder, (_e, names: string[]) => reorderGroups(names))
 
   ipcMain.handle(IPC.RecentsList, () => listRecents())
   ipcMain.handle(IPC.RecentsRemove, (_e, hostId: string) => removeRecent(hostId))

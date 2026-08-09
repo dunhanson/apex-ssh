@@ -23,6 +23,12 @@ export interface HostConfig {
 /** 新建主机时的入参（id 由主进程生成） */
 export type HostInput = Omit<HostConfig, 'id'>
 
+/** 独立主机分组；未分组为界面虚拟分组，不写入此列表。 */
+export interface HostGroup {
+  name: string
+  order: number
+}
+
 /** 主机配置备份导入结果；凭证本体不属于备份范围 */
 export interface HostBackupResult {
   status: 'success' | 'cancelled' | 'password-required' | 'preview'
@@ -331,6 +337,11 @@ export const IPC = {
   HostsImportCommit: 'hosts:import-commit',
   HostsImportCancel: 'hosts:import-cancel',
   HostsBackupStats: 'hosts:backup-stats',
+  GroupsList: 'groups:list',
+  GroupsCreate: 'groups:create',
+  GroupsRename: 'groups:rename',
+  GroupsDelete: 'groups:delete',
+  GroupsReorder: 'groups:reorder',
   ClipboardWriteText: 'clipboard:write-text',
   ClipboardReadText: 'clipboard:read-text',
   DialogPickFile: 'dialog:pick-file',
@@ -432,6 +443,14 @@ export interface RendererApi {
     cancelEncryptedBackup: () => Promise<void>
     /** 只统计完整备份条目数量，不读取或返回凭证明文 */
     getBackupStats: () => Promise<EncryptedBackupStats>
+  }
+  groups: {
+    list: () => Promise<HostGroup[]>
+    create: (name: string) => Promise<HostGroup>
+    rename: (currentName: string, nextName: string) => Promise<HostGroup>
+    /** 删除分组但保留主机，关联主机自动移入未分组。 */
+    delete: (name: string) => Promise<void>
+    reorder: (names: string[]) => Promise<HostGroup[]>
   }
   dialog: {
     /** 打开文件选择框（选私钥等），取消时返回 null */

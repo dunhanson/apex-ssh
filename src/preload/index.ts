@@ -7,6 +7,7 @@ import type {
   DetachedSessionInfo,
   DownloadItem,
   HostConfig,
+  HostGroup,
   HostInput,
   RecentEntry,
   RendererApi,
@@ -40,6 +41,15 @@ const api: RendererApi = {
     commitEncryptedBackup: (mode) => ipcRenderer.invoke(IPC.HostsImportCommit, mode),
     cancelEncryptedBackup: () => ipcRenderer.invoke(IPC.HostsImportCancel),
     getBackupStats: () => ipcRenderer.invoke(IPC.HostsBackupStats)
+  },
+
+  groups: {
+    list: (): Promise<HostGroup[]> => ipcRenderer.invoke(IPC.GroupsList),
+    create: (name: string) => ipcRenderer.invoke(IPC.GroupsCreate, name),
+    rename: (currentName: string, nextName: string) =>
+      ipcRenderer.invoke(IPC.GroupsRename, currentName, nextName),
+    delete: (name: string) => ipcRenderer.invoke(IPC.GroupsDelete, name),
+    reorder: (names: string[]) => ipcRenderer.invoke(IPC.GroupsReorder, names)
   },
 
   dialog: {

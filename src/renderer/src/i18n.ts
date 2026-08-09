@@ -33,7 +33,7 @@ const resources = {
         noMatch: '无匹配主机',
         expandGroup: '展开分组',
         collapseGroup: '折叠分组',
-        defaultGroup: '主机',
+        defaultGroup: '未分组',
         keys: '密钥',
         settings: '设置',
         menuConnect: '连接',
@@ -66,6 +66,24 @@ const resources = {
         filter: '筛选主机…',
         hint: '单击选择，双击或按 Enter 连接',
         connect: '连接'
+      },
+      groups: {
+        title: '分组管理',
+        back: '返回配置和连接',
+        count: '{{count}} 个分组',
+        newLabel: '新建分组',
+        newPlaceholder: '输入分组名称',
+        create: '新建',
+        hostCount: '{{count}} 台主机',
+        systemGroup: '系统分组',
+        moveUp: '上移分组',
+        moveDown: '下移分组',
+        rename: '重命名分组',
+        delete: '删除分组',
+        newConnection: '在此分组新建连接',
+        deleteTitle: '删除“{{name}}”？',
+        deleteHint: '分组会被删除，组内主机会保留并移入“未分组”。',
+        confirmDelete: '删除分组'
       },
       terminalMenu: {
         copy: '复制',
@@ -111,6 +129,10 @@ const resources = {
         updateHostFailed: '更新主机失败：{{message}}',
         deleteHostFailed: '删除主机失败：{{message}}',
         hostDeleted: '主机已删除',
+        groupCreated: '分组已创建',
+        groupRenamed: '分组已重命名',
+        groupDeleted: '分组已删除，主机已移入未分组',
+        groupFailed: '分组操作失败：{{message}}',
         placeholder: '{{name}}将在后续里程碑提供'
       },
       newConn: {
@@ -472,7 +494,7 @@ const resources = {
         noMatch: 'No matching hosts',
         expandGroup: 'Expand group',
         collapseGroup: 'Collapse group',
-        defaultGroup: 'Hosts',
+        defaultGroup: 'Ungrouped',
         keys: 'KEYS',
         settings: 'SETTINGS',
         menuConnect: 'Connect',
@@ -505,6 +527,24 @@ const resources = {
         filter: 'Filter hosts…',
         hint: 'Click to select; double-click or press Enter to connect',
         connect: 'Connect'
+      },
+      groups: {
+        title: 'Group management',
+        back: 'Back to connections',
+        count: '{{count}} groups',
+        newLabel: 'New group',
+        newPlaceholder: 'Enter a group name',
+        create: 'Create',
+        hostCount: '{{count}} hosts',
+        systemGroup: 'System group',
+        moveUp: 'Move group up',
+        moveDown: 'Move group down',
+        rename: 'Rename group',
+        delete: 'Delete group',
+        newConnection: 'New connection in this group',
+        deleteTitle: 'Delete “{{name}}”?',
+        deleteHint: 'The group will be deleted. Its hosts will be kept and moved to Ungrouped.',
+        confirmDelete: 'Delete group'
       },
       terminalMenu: {
         copy: 'Copy',
@@ -550,6 +590,10 @@ const resources = {
         updateHostFailed: 'Failed to update host: {{message}}',
         deleteHostFailed: 'Failed to delete host: {{message}}',
         hostDeleted: 'Host deleted',
+        groupCreated: 'Group created',
+        groupRenamed: 'Group renamed',
+        groupDeleted: 'Group deleted; hosts moved to Ungrouped',
+        groupFailed: 'Group operation failed: {{message}}',
         placeholder: '{{name}} is coming in a later milestone'
       },
       newConn: {

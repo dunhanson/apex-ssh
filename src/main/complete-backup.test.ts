@@ -3,11 +3,14 @@ import type { CompleteBackupPayload } from './encrypted-backup'
 
 const mocks = vi.hoisted(() => ({
   importCompleteCredentials: vi.fn(),
+  importGroups: vi.fn(),
   rollbackImportedCredentials: vi.fn(),
   importHosts: vi.fn(),
   listHosts: vi.fn(),
+  listGroups: vi.fn(),
   listKeys: vi.fn(),
-  restoreHostsSnapshot: vi.fn()
+  restoreHostsSnapshot: vi.fn(),
+  restoreGroupsSnapshot: vi.fn()
 }))
 
 vi.mock('electron', () => ({ app: { getVersion: () => '0.1.0' } }))
@@ -19,8 +22,11 @@ vi.mock('./credentials', () => ({
   rollbackImportedCredentials: mocks.rollbackImportedCredentials
 }))
 vi.mock('./hosts', () => ({
+  importGroups: mocks.importGroups,
   importHosts: mocks.importHosts,
+  listGroups: mocks.listGroups,
   listHosts: mocks.listHosts,
+  restoreGroupsSnapshot: mocks.restoreGroupsSnapshot,
   restoreHostsSnapshot: mocks.restoreHostsSnapshot
 }))
 
@@ -70,6 +76,7 @@ describe('完整备份导入事务', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.listHosts.mockReturnValue([{ id: 'local-host' }])
+    mocks.listGroups.mockReturnValue([{ name: '本地分组', order: 0 }])
     mocks.listKeys.mockReturnValue([])
     mocks.importCompleteCredentials.mockResolvedValue({
       passwordIdMap: new Map([['password-conflict', 'password-remapped']]),
@@ -114,6 +121,7 @@ describe('完整备份导入事务', () => {
 
     await expect(importCompleteBackupPayload(payload(), 'replace')).rejects.toBe(failure)
     expect(mocks.restoreHostsSnapshot).toHaveBeenCalledWith([{ id: 'local-host' }])
+    expect(mocks.restoreGroupsSnapshot).toHaveBeenCalledWith([{ name: '本地分组', order: 0 }])
     expect(mocks.rollbackImportedCredentials).toHaveBeenCalledWith(
       expect.objectContaining({
         createdPasswordIds: ['password-remapped'],

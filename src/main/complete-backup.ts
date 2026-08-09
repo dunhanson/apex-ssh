@@ -14,7 +14,14 @@ import {
   listKeys,
   rollbackImportedCredentials
 } from './credentials'
-import { importHosts, listHosts, restoreHostsSnapshot } from './hosts'
+import {
+  importGroups,
+  importHosts,
+  listGroups,
+  listHosts,
+  restoreGroupsSnapshot,
+  restoreHostsSnapshot
+} from './hosts'
 
 function hostName(host: HostConfig): string {
   return host.label.trim() || `${host.username}@${host.host}`
@@ -123,6 +130,7 @@ export function createCompleteBackupPayload(): CompleteBackupPayload {
       keys: keyEntries.length,
       passphrases: keyEntries.filter((entry) => !!entry.passphrase).length
     },
+    groups: listGroups(),
     hosts,
     passwords: passwordEntries,
     keys: keyEntries
@@ -134,6 +142,7 @@ export async function importCompleteBackupPayload(
   mode: 'merge' | 'replace'
 ): Promise<{ added: number; updated: number }> {
   const hostSnapshot = listHosts()
+  const groupSnapshot = listGroups()
   const imported = await importCompleteCredentials(payload.passwords, payload.keys)
   try {
     const hosts = payload.hosts.map((host): HostConfig => {
@@ -149,10 +158,17 @@ export async function importCompleteBackupPayload(
       }
       return host
     })
-    return importHosts(hosts, mode)
+    const result = importHosts(hosts, mode)
+    importGroups(
+      payload.groups ?? [...new Set(hosts.map((host) => host.group).filter((name): name is string => !!name))]
+        .map((name, order) => ({ name, order })),
+      mode
+    )
+    return result
   } catch (error) {
     try {
       restoreHostsSnapshot(hostSnapshot)
+      restoreGroupsSnapshot(groupSnapshot)
     } finally {
       rollbackImportedCredentials(imported)
     }

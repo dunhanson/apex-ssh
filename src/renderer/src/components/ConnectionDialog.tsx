@@ -45,6 +45,10 @@ interface ConnectionDialogProps {
   existingHosts: HostConfig[]
   /** 从启动器输入 user@host 时预填新建表单 */
   initialAddress?: { host: string; username: string } | null
+  /** 从分组右键菜单新建连接时预填。 */
+  initialGroup?: string | null
+  /** 独立分组列表，包含尚无主机的空分组。 */
+  availableGroups?: string[]
 }
 
 function ConnectionSelect({
@@ -120,7 +124,9 @@ export function ConnectionDialog({
   onSubmit,
   onUpdate,
   existingHosts,
-  initialAddress
+  initialAddress,
+  initialGroup,
+  availableGroups = []
 }: ConnectionDialogProps) {
   const { t } = useTranslation()
   const isEdit = host !== null
@@ -147,9 +153,12 @@ export function ConnectionDialog({
   const [configEntries, setConfigEntries] = useState<SshConfigEntry[] | null>(null)
   const groupOptions = useMemo(
     () =>
-      [...new Set(existingHosts.map((item) => item.group?.trim()).filter((item): item is string => Boolean(item)))]
+      [...new Set([
+        ...availableGroups,
+        ...existingHosts.map((item) => item.group?.trim()).filter((item): item is string => Boolean(item))
+      ])]
         .sort((a, b) => a.localeCompare(b)),
-    [existingHosts]
+    [availableGroups, existingHosts]
   )
 
   const reset = () => {
@@ -200,9 +209,10 @@ export function ConnectionDialog({
           setHostValue(initialAddress.host)
           setUsername(initialAddress.username)
         }
+        if (initialGroup) setGroup(initialGroup)
       }
     }
-  }, [open, host, isEdit, initialAddress])
+  }, [open, host, isEdit, initialAddress, initialGroup])
 
   const valid =
     hostValue.trim() !== '' &&

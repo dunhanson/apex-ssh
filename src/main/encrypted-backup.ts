@@ -7,7 +7,7 @@ import {
 import { execFile as execFileCallback } from 'node:child_process'
 import { chmodSync, promises as fsp } from 'node:fs'
 import { promisify } from 'node:util'
-import type { EncryptedBackupStats, HostConfig } from '@shared/types'
+import type { EncryptedBackupStats, HostConfig, HostGroup } from '@shared/types'
 
 const scrypt = promisify(scryptCallback)
 const execFile = promisify(execFileCallback)
@@ -47,6 +47,7 @@ export interface CompleteBackupPayload {
   exportedAt: string
   appVersion: string
   stats: EncryptedBackupStats
+  groups?: HostGroup[]
   hosts: HostConfig[]
   passwords: CompletePasswordCredential[]
   keys: CompleteKeyCredential[]
@@ -336,12 +337,19 @@ export function parseCompleteBackupPayload(value: unknown): CompleteBackupPayloa
     keys: keys.length,
     passphrases: keys.filter((entry) => !!entry.passphrase).length
   }
+  const groups = Array.isArray(raw.groups)
+    ? raw.groups.map((value, index): HostGroup => {
+        const entry = asObject(value, `第 ${index + 1} 条分组配置无效`)
+        return { name: requiredString(entry.name, 'group.name', 100), order: index }
+      })
+    : undefined
   return {
     format: 'apex-complete-backup',
     version: 1,
     exportedAt: requiredString(raw.exportedAt, 'exportedAt', 64),
     appVersion: boundedString(raw.appVersion, 'appVersion', 64),
     stats,
+    ...(groups ? { groups } : {}),
     hosts,
     passwords,
     keys
