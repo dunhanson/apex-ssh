@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  ChevronDown,
   CloudUpload,
   Copy,
   DatabaseBackup,
@@ -30,6 +29,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { NumberInput } from '@/components/ui/number-input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   Dialog,
   DialogBody,
@@ -60,30 +69,12 @@ function SettingToggle({
   onChange: (checked: boolean) => void
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
+    <Switch
+      checked={checked}
+      emphasized={emphasized}
       aria-label={label}
-      className={cn(
-        'relative h-5 w-9 shrink-0 rounded-full border transition-colors cursor-pointer outline-none',
-        checked && emphasized
-          ? 'border-settings-emphasis/40 bg-settings-emphasis/[0.12]'
-          : checked
-            ? 'border-white/25 bg-white/[0.12]'
-            : 'border-settings-control bg-elevated'
-      )}
-      onClick={() => onChange(!checked)}
-    >
-      <span
-        className={cn(
-          'absolute top-[3px] size-3 rounded-full transition-[left,background-color]',
-          checked
-            ? cn('left-[19px]', emphasized ? 'bg-settings-emphasis' : 'bg-fg')
-            : 'left-[3px] bg-faint'
-        )}
-      />
-    </button>
+      onCheckedChange={onChange}
+    />
   )
 }
 
@@ -162,21 +153,20 @@ function SettingSelect({
   onChange: (value: string) => void
 }) {
   return (
-    <div className="relative">
-      <select
-        id={id}
-        value={value}
-        className="h-9 w-full appearance-none bg-surface border border-line rounded-sm px-2.5 py-[7px] pr-9 font-mono text-[12.5px] text-fg outline-none transition-colors duration-100 focus:border-white/20 cursor-pointer"
-        onChange={(event) => onChange(event.currentTarget.value)}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-faint" />
-    </div>
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger id={id}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -225,6 +215,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('')
   const [backupBusy, setBackupBusy] = useState(false)
   const [importPreview, setImportPreview] = useState<EncryptedBackupStats | null>(null)
+  const [importStrategy, setImportStrategy] = useState<'merge' | 'replace'>('merge')
   const [syncState, setSyncState] = useState<CloudSyncState | null>(null)
   const [syncForm, setSyncForm] = useState({
     host: '',
@@ -837,7 +828,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
               <div className="flex max-w-[560px] flex-col gap-3">
                 <div>
                   <Label>{t('settings.downloadDir')}</Label>
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
                     <div
                       className="settings-control-surface min-w-0 h-9 flex items-center px-2.5 rounded-sm border font-mono text-[11px] text-faint"
                       title={settings.downloadDir || undefined}
@@ -847,15 +838,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                       </span>
                     </div>
                     <Button
-                      className="h-9 shrink-0"
-                      onClick={async () => {
-                        const dir = await window.api.dialog.pickDirectory()
-                        if (dir) patch({ downloadDir: dir })
-                      }}
-                    >
-                      {t('common.browse')}
-                    </Button>
-                    <Button
+                      variant="ghost"
                       size="icon"
                       className="size-9 shrink-0"
                       title={t('settings.downloadDirReset')}
@@ -864,6 +847,17 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                       onClick={() => patch({ downloadDir: '' })}
                     >
                       <RotateCcw />
+                    </Button>
+                  </div>
+                  <div className="settings-backup-actions mt-2 grid gap-3" data-count="1">
+                    <Button
+                      variant="ghost"
+                      onClick={async () => {
+                        const dir = await window.api.dialog.pickDirectory()
+                        if (dir) patch({ downloadDir: dir })
+                      }}
+                    >
+                      {t('settings.selectDirectory')}
                     </Button>
                   </div>
                 </div>
@@ -1014,11 +1008,11 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </div>
                 )}
                 <div className="settings-backup-actions grid gap-3">
-                  <Button className="w-full" onClick={() => void exportBackup()}>
+                  <Button variant="solid" className="w-full" onClick={() => void exportBackup()}>
                     <Download data-icon="inline-start" />
                     {t('settings.exportBackup')}
                   </Button>
-                  <Button className="w-full" onClick={() => void importBackup()}>
+                  <Button variant="solid" className="w-full" onClick={() => void importBackup()}>
                     <Upload data-icon="inline-start" />
                     {t('settings.importBackup')}
                   </Button>
@@ -1049,24 +1043,21 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   {backupPasswordMode === 'export' && (
                     <div>
                       <Label>{t('settings.backupPasswordSource')}</Label>
-                      <Tabs
+                      <ToggleGroup
+                        type="single"
                         value={backupPasswordSource}
-                        onValueChange={(value) =>
-                          selectBackupPasswordSource(value as 'custom' | 'random')
-                        }
+                        aria-label={t('settings.backupPasswordSource')}
+                        onValueChange={(value) => {
+                          if (value) selectBackupPasswordSource(value as 'custom' | 'random')
+                        }}
                       >
-                        <TabsList
-                          className="h-9 w-full"
-                          aria-label={t('settings.backupPasswordSource')}
-                        >
-                          <TabsTrigger value="custom">
-                            {t('settings.customBackupPassword')}
-                          </TabsTrigger>
-                          <TabsTrigger value="random">
-                            {t('settings.randomBackupPassword')}
-                          </TabsTrigger>
-                        </TabsList>
-                      </Tabs>
+                        <ToggleGroupItem value="custom">
+                          {t('settings.customBackupPassword')}
+                        </ToggleGroupItem>
+                        <ToggleGroupItem value="random">
+                          {t('settings.randomBackupPassword')}
+                        </ToggleGroupItem>
+                      </ToggleGroup>
                     </div>
                   )}
                   <div>
@@ -1131,7 +1122,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   )}
                 </DialogBody>
                 <DialogFooter className="justify-end">
-                  <Button disabled={backupBusy} onClick={() => void closePasswordDialog()}>
+                  <Button variant="ghost" disabled={backupBusy} onClick={() => void closePasswordDialog()}>
                     {t('common.cancel')}
                   </Button>
                   <Button
@@ -1170,9 +1161,25 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     <span>{t('settings.backupKeys', { count: importPreview?.keys ?? 0 })}</span>
                     <span>{t('settings.backupPassphrases', { count: importPreview?.passphrases ?? 0 })}</span>
                   </div>
+                  <div>
+                    <Label>{t('settings.importMode')}</Label>
+                    <ToggleGroup
+                      type="single"
+                      value={importStrategy}
+                      aria-label={t('settings.importMode')}
+                      onValueChange={(value) => {
+                        if (value) setImportStrategy(value as 'merge' | 'replace')
+                      }}
+                    >
+                      <ToggleGroupItem value="merge">{t('settings.importMerge')}</ToggleGroupItem>
+                      <ToggleGroupItem value="replace">{t('settings.importReplace')}</ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
                 </DialogBody>
-                <DialogFooter className="justify-end max-[420px]:flex-wrap">
+                <DialogFooter>
                   <Button
+                    variant="ghost"
+                    className="flex-1"
                     disabled={backupBusy}
                     onClick={() => {
                       setImportPreview(null)
@@ -1181,15 +1188,13 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   >
                     {t('common.cancel')}
                   </Button>
-                  <Button disabled={backupBusy} onClick={() => void commitEncryptedImport('merge')}>
-                    {t('settings.importMerge')}
-                  </Button>
                   <Button
                     variant="solid"
+                    className="flex-1"
                     disabled={backupBusy}
-                    onClick={() => void commitEncryptedImport('replace')}
+                    onClick={() => void commitEncryptedImport(importStrategy)}
                   >
-                    {t('settings.importReplace')}
+                    {t('settings.importBackup')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -1259,6 +1264,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                 </div>
                 <div className="settings-backup-actions grid gap-3">
                   <Button
+                    variant="solid"
                     className="w-full"
                     disabled={syncBusy}
                     onClick={() => void saveSyncConnection()}
@@ -1266,6 +1272,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     {t('settings.syncSaveConnection')}
                   </Button>
                   <Button
+                    variant="ghost"
                     className="w-full"
                     disabled={syncBusy}
                     onClick={() => void testSyncConnection()}
@@ -1292,17 +1299,21 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                 </div>
                 <div>
                   <Label>{t('settings.syncKeySource')}</Label>
-                  <Tabs
+                  <ToggleGroup
+                    type="single"
                     value={syncKeySource}
-                    onValueChange={(value) =>
-                      setSyncKeySource(value as 'generate' | 'existing')
-                    }
+                    aria-label={t('settings.syncKeySource')}
+                    onValueChange={(value) => {
+                      if (value) setSyncKeySource(value as 'generate' | 'existing')
+                    }}
                   >
-                    <TabsList className="h-9 w-full" aria-label={t('settings.syncKeySource')}>
-                      <TabsTrigger value="generate">{t('settings.syncGenerateMode')}</TabsTrigger>
-                      <TabsTrigger value="existing">{t('settings.syncExistingMode')}</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
+                    <ToggleGroupItem value="generate">
+                      {t('settings.syncGenerateMode')}
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="existing">
+                      {t('settings.syncExistingMode')}
+                    </ToggleGroupItem>
+                  </ToggleGroup>
                 </div>
                 {syncKeySource === 'generate' ? (
                   <div
@@ -1310,12 +1321,13 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     data-count={syncGeneratedCopyAvailable ? '2' : '1'}
                   >
                     {syncGeneratedCopyAvailable && (
-                      <Button disabled={syncBusy} onClick={() => void copyGeneratedSyncKey()}>
+                      <Button variant="ghost" disabled={syncBusy} onClick={() => void copyGeneratedSyncKey()}>
                         <Copy data-icon="inline-start" />
                         {t('settings.syncCopyKeyOnce')}
                       </Button>
                     )}
                     <Button
+                      variant="solid"
                       disabled={syncBusy}
                       onClick={() =>
                         syncState?.hasKey ? setRegenKeyAsk(true) : void generateSyncKey()
@@ -1330,22 +1342,24 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                 ) : (
                   <div>
                     <Label htmlFor="sync-key-input">{t('settings.syncKeyInput')}</Label>
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-                    <Input
-                      id="sync-key-input"
-                      type="password"
-                      autoComplete="off"
-                      value={syncKeyInput}
-                      placeholder={t('settings.syncKeyPlaceholder')}
-                      onChange={(event) => setSyncKeyInput(event.currentTarget.value)}
-                    />
-                    <Button
-                      className="h-9 shrink-0"
-                      disabled={syncBusy || !syncKeyInput.trim()}
-                      onClick={() => void submitSyncKey()}
-                    >
-                      {t('settings.syncUseKey')}
-                    </Button>
+                    <div className="flex flex-col gap-2">
+                      <Input
+                        id="sync-key-input"
+                        type="password"
+                        autoComplete="off"
+                        value={syncKeyInput}
+                        placeholder={t('settings.syncKeyPlaceholder')}
+                        onChange={(event) => setSyncKeyInput(event.currentTarget.value)}
+                      />
+                      <div className="settings-backup-actions grid gap-3" data-count="1">
+                        <Button
+                          variant="solid"
+                          disabled={syncBusy || !syncKeyInput.trim()}
+                          onClick={() => void submitSyncKey()}
+                        >
+                          {t('settings.syncUseKey')}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1386,6 +1400,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                 )}
                 <div className="settings-backup-actions grid gap-3">
                   <Button
+                    variant="solid"
                     className="w-full"
                     disabled={syncBusy || !syncState?.enabled || syncState.syncing}
                     onClick={() => void runSyncAction(window.api.cloudSync.syncNow)}
@@ -1394,6 +1409,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     {t('settings.syncNow')}
                   </Button>
                   <Button
+                    variant="danger"
                     className="w-full"
                     disabled={syncBusy || !syncState?.configured}
                     onClick={() => setClearRemoteAsk(true)}
@@ -1416,7 +1432,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </p>
                 </DialogBody>
                 <DialogFooter className="justify-end">
-                  <Button size="sm" onClick={() => setRegenKeyAsk(false)}>
+                  <Button variant="ghost" size="sm" onClick={() => setRegenKeyAsk(false)}>
                     {t('common.cancel')}
                   </Button>
                   <Button
@@ -1443,12 +1459,12 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </p>
                 </DialogBody>
                 <DialogFooter className="justify-end">
-                  <Button size="sm" onClick={() => setClearRemoteAsk(false)}>
+                  <Button variant="ghost" size="sm" onClick={() => setClearRemoteAsk(false)}>
                     {t('common.cancel')}
                   </Button>
                   <Button
                     size="sm"
-                    variant="solid"
+                    variant="danger"
                     disabled={syncBusy}
                     onClick={() => void clearRemote()}
                   >
@@ -1490,7 +1506,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   data-count={updateStatus.state === 'downloaded' ? 2 : 1}
                 >
                   {updateStatus.state !== 'checking' && updateStatus.state !== 'downloading' && (
-                    <Button className="h-9 w-full" onClick={() => void window.api.updater.check()}>
+                    <Button variant="ghost" className="h-9 w-full" onClick={() => void window.api.updater.check()}>
                       <RefreshCw data-icon="inline-start" />
                       {updateStatus.state === 'error'
                         ? t('settings.updateRetry')
@@ -1527,7 +1543,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </p>
                 </DialogBody>
                 <DialogFooter className="justify-end">
-                  <Button size="sm" onClick={() => setRestartAsk(false)}>
+                  <Button variant="ghost" size="sm" onClick={() => setRestartAsk(false)}>
                     {t('common.cancel')}
                   </Button>
                   <Button

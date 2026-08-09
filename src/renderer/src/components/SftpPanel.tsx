@@ -1121,7 +1121,7 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
             <Button size="sm" onClick={() => answerConflict('skip')}>
               {t('sftp.conflictSkip')}
             </Button>
-            <Button size="sm" variant="solid" onClick={() => answerConflict('overwrite')}>
+            <Button size="sm" variant="danger" onClick={() => answerConflict('overwrite')}>
               {t('sftp.conflictOverwrite')}
             </Button>
           </DialogFooter>
@@ -1145,7 +1145,7 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
             <Button size="sm" onClick={() => setDeleteAsk(null)}>
               {t('common.cancel')}
             </Button>
-            <Button size="sm" variant="solid" className="!text-danger !border-danger/40" onClick={confirmDelete}>
+            <Button size="sm" variant="danger" onClick={confirmDelete}>
               {t('sftp.deleteConfirm')}
             </Button>
           </DialogFooter>
@@ -1168,7 +1168,7 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
             <Button size="sm" onClick={() => setLocalDeleteAsk(null)}>
               {t('common.cancel')}
             </Button>
-            <Button size="sm" variant="solid" className="!text-danger !border-danger/40" onClick={confirmLocalDelete}>
+            <Button size="sm" variant="danger" onClick={confirmLocalDelete}>
               {t('sftp.deleteConfirm')}
             </Button>
           </DialogFooter>

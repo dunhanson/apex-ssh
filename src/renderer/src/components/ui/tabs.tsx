@@ -2,7 +2,7 @@ import * as React from 'react'
 import * as TabsPrimitive from '@radix-ui/react-tabs'
 import { cn } from '@/lib/utils'
 
-/** 页签切换（认证方式 Key/Password 等）：细描边分段控件 */
+/** 页签与分段切换：设置导航使用 settings 变体，其余使用标准 36px 分段控件。 */
 const Tabs = TabsPrimitive.Root
 
 function TabsList({
@@ -19,7 +19,7 @@ function TabsList({
       className={cn(
         variant === 'settings'
           ? 'settings-navigation flex flex-col items-stretch gap-1 overflow-y-auto border-r border-line bg-panel p-3'
-          : 'flex overflow-hidden rounded-sm border border-line',
+          : 'grid h-9 grid-flow-col auto-cols-fr gap-[3px] rounded-sm border border-line bg-surface p-[3px]',
         className
       )}
       {...props}
@@ -40,8 +40,8 @@ function TabsTrigger({
       data-variant={variant}
       className={cn(
         variant === 'settings'
-          ? 'flex h-[34px] shrink-0 items-center justify-start gap-2 rounded-sm px-2.5 font-mono text-xs text-faint outline-none transition-colors duration-100 hover:bg-white/[0.025] hover:text-dim data-[state=active]:bg-white/[0.065] data-[state=active]:text-fg [&_svg]:size-3.5 [&_svg]:shrink-0'
-          : 'flex-1 cursor-pointer py-1.5 font-mono text-[11px] text-faint outline-none transition-colors duration-100 hover:text-dim data-[state=active]:bg-white/[0.06] data-[state=active]:text-fg',
+          ? 'flex h-[34px] shrink-0 items-center justify-start gap-2 rounded-sm px-2.5 font-sans text-xs text-faint outline-none transition-colors duration-100 hover:bg-white/[0.025] hover:text-dim data-[state=active]:bg-accent data-[state=active]:text-fg [&_svg]:size-3.5 [&_svg]:shrink-0'
+          : 'flex h-7 min-w-0 cursor-pointer items-center justify-center rounded-xs px-3 font-sans text-xs font-medium text-dim outline-none transition-[background-color,color,box-shadow] duration-100 hover:bg-white/[0.035] hover:text-fg focus-visible:ring-2 focus-visible:ring-ring data-[state=active]:bg-accent data-[state=active]:text-fg data-[state=active]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]',
         className
       )}
       {...props}

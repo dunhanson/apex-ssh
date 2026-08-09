@@ -15,7 +15,15 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 /**
  * 连接弹窗：新建 / 编辑双模式。
@@ -39,8 +47,36 @@ interface ConnectionDialogProps {
   initialAddress?: { host: string; username: string } | null
 }
 
-const selectClass =
-  'w-full bg-elevated border border-line rounded-sm px-2.5 py-[7px] font-mono text-[12px] text-fg outline-none focus:border-white/20 cursor-pointer'
+function ConnectionSelect({
+  id,
+  value,
+  placeholder,
+  options,
+  onValueChange
+}: {
+  id?: string
+  value: string
+  placeholder?: string
+  options: Array<{ value: string; label: string }>
+  onValueChange: (value: string) => void
+}) {
+  return (
+    <Select value={value || undefined} onValueChange={onValueChange}>
+      <SelectTrigger id={id}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectGroup>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectGroup>
+      </SelectContent>
+    </Select>
+  )
+}
 
 function authConfigToFields(auth: AuthConfig): {
   authType: 'password' | 'key'
@@ -394,26 +430,32 @@ export function ConnectionDialog({
 
             <div>
               <Label>{t('newConn.authMethod')}</Label>
-              <Tabs value={authType} onValueChange={(v) => setAuthType(v as 'password' | 'key')}>
-                <TabsList>
-                  <TabsTrigger value="key">{t('newConn.key')}</TabsTrigger>
-                  <TabsTrigger value="password">{t('newConn.password')}</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <ToggleGroup
+                type="single"
+                value={authType}
+                aria-label={t('newConn.authMethod')}
+                onValueChange={(value) => {
+                  if (value) setAuthType(value as 'password' | 'key')
+                }}
+              >
+                <ToggleGroupItem value="key">{t('newConn.key')}</ToggleGroupItem>
+                <ToggleGroupItem value="password">{t('newConn.password')}</ToggleGroupItem>
+              </ToggleGroup>
             </div>
 
             {authType === 'password' ? (
               <>
                 <div>
-                  <Label>{t('newConn.passwordSource')}</Label>
-                  <select
-                    className={selectClass}
+                  <Label htmlFor="nc-password-source">{t('newConn.passwordSource')}</Label>
+                  <ConnectionSelect
+                    id="nc-password-source"
                     value={pwSource}
-                    onChange={(e) => setPwSource(e.target.value as 'direct' | 'store')}
-                  >
-                    <option value="direct">{t('newConn.passwordDirect')}</option>
-                    <option value="store">{t('newConn.passwordFromStore')}</option>
-                  </select>
+                    options={[
+                      { value: 'direct', label: t('newConn.passwordDirect') },
+                      { value: 'store', label: t('newConn.passwordFromStore') }
+                    ]}
+                    onValueChange={(value) => setPwSource(value as 'direct' | 'store')}
+                  />
                 </div>
                 {pwSource === 'direct' ? (
                   <div>
@@ -434,18 +476,15 @@ export function ConnectionDialog({
                         {t('newConn.passwordEmpty')}
                       </div>
                     ) : (
-                      <select
-                        className={selectClass}
+                      <ConnectionSelect
                         value={passwordId}
-                        onChange={(e) => setPasswordId(e.target.value)}
-                      >
-                        <option value="">—</option>
-                        {storePasswords.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="—"
+                        options={storePasswords.map((passwordEntry) => ({
+                          value: passwordEntry.id,
+                          label: passwordEntry.label
+                        }))}
+                        onValueChange={setPasswordId}
+                      />
                     )}
                   </div>
                 )}
@@ -453,15 +492,16 @@ export function ConnectionDialog({
             ) : (
               <>
                 <div>
-                  <Label>{t('newConn.keySource')}</Label>
-                  <select
-                    className={selectClass}
+                  <Label htmlFor="nc-key-source">{t('newConn.keySource')}</Label>
+                  <ConnectionSelect
+                    id="nc-key-source"
                     value={keySource}
-                    onChange={(e) => setKeySource(e.target.value as 'file' | 'store')}
-                  >
-                    <option value="file">{t('newConn.keyFromFile')}</option>
-                    <option value="store">{t('newConn.keyFromStore')}</option>
-                  </select>
+                    options={[
+                      { value: 'file', label: t('newConn.keyFromFile') },
+                      { value: 'store', label: t('newConn.keyFromStore') }
+                    ]}
+                    onValueChange={(value) => setKeySource(value as 'file' | 'store')}
+                  />
                 </div>
                 {keySource === 'file' ? (
                   <div>
@@ -486,18 +526,15 @@ export function ConnectionDialog({
                         {t('newConn.keyEmpty')}
                       </div>
                     ) : (
-                      <select
-                        className={selectClass}
+                      <ConnectionSelect
                         value={keyId}
-                        onChange={(e) => setKeyId(e.target.value)}
-                      >
-                        <option value="">—</option>
-                        {storeKeys.map((k) => (
-                          <option key={k.id} value={k.id}>
-                            {k.name}（{k.fingerprint}）
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="—"
+                        options={storeKeys.map((keyEntry) => ({
+                          value: keyEntry.id,
+                          label: `${keyEntry.name}（${keyEntry.fingerprint}）`
+                        }))}
+                        onValueChange={setKeyId}
+                      />
                     )}
                   </div>
                 )}
