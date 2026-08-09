@@ -1,8 +1,8 @@
-import { useMemo, useState, type SyntheticEvent } from 'react'
+import { useEffect, useMemo, useState, type KeyboardEvent, type SyntheticEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { ChevronRight, KeyRound, PanelsTopLeft, Plus, Search } from 'lucide-react'
-import type { HostConfig } from '@shared/types'
+import { ChevronRight, FolderCog, KeyRound, LogIn, PanelsTopLeft, Plus, Search } from 'lucide-react'
+import type { HostConfig, HostGroup } from '@shared/types'
 import { cn } from '@/lib/utils'
 import {
   ContextMenu,
@@ -12,6 +12,7 @@ import {
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 
 export type HostAction = 'connect' | 'edit' | 'duplicate' | 'splitRight' | 'delete'
 
@@ -25,11 +26,13 @@ interface ConnectionHubProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   hosts: HostConfig[]
+  hostGroups: HostGroup[]
   sessionHostIds: Set<string>
   activeHostId: string | null
   onConnect: (host: HostConfig) => void
-  onNewConnection: () => void
+  onNewConnection: (group?: string) => void
   onOpenCredentials: () => void
+  onOpenGroups: (group?: string, action?: 'edit' | 'delete') => void
   onAction: (host: HostConfig, action: HostAction) => void
 }
 
@@ -38,16 +41,19 @@ export function ConnectionHub({
   open,
   onOpenChange,
   hosts,
+  hostGroups,
   sessionHostIds,
   activeHostId,
   onConnect,
   onNewConnection,
   onOpenCredentials,
+  onOpenGroups,
   onAction
 }: ConnectionHubProps) {
   const { t } = useTranslation()
   const [filter, setFilter] = useState('')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [selectedHostId, setSelectedHostId] = useState<string | null>(null)
   const [descriptionTooltip, setDescriptionTooltip] = useState<DescriptionTooltipState | null>(null)
 
   const groups = useMemo(() => {
@@ -64,8 +70,32 @@ export function ConnectionHub({
       const group = host.group?.trim() || t('sidebar.defaultGroup')
       grouped.set(group, [...(grouped.get(group) ?? []), host])
     }
-    return [...grouped.entries()]
-  }, [filter, hosts, t])
+    const ordered = hostGroups
+      .filter((group) => !keyword || grouped.has(group.name))
+      .map((group) => [group.name, grouped.get(group.name) ?? []] as const)
+    const known = new Set(hostGroups.map((group) => group.name))
+    for (const [name, list] of grouped) {
+      if (!known.has(name)) ordered.push([name, list])
+    }
+    return ordered
+  }, [filter, hostGroups, hosts, t])
+
+  const selectedHost = useMemo(
+    () => hosts.find((host) => host.id === selectedHostId) ?? null,
+    [hosts, selectedHostId]
+  )
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedHostId(null)
+      return
+    }
+
+    const visibleHostIds = new Set(
+      groups.flatMap(([group, list]) => (collapsedGroups.has(group) ? [] : list.map((host) => host.id)))
+    )
+    if (selectedHostId && !visibleHostIds.has(selectedHostId)) setSelectedHostId(null)
+  }, [collapsedGroups, groups, open, selectedHostId])
 
   const toggleGroup = (group: string) => {
     setCollapsedGroups((current) => {
@@ -80,6 +110,23 @@ export function ConnectionHub({
     setDescriptionTooltip(null)
     onOpenChange(false)
     onConnect(host)
+  }
+
+  const connectSelected = () => {
+    if (selectedHost) connect(selectedHost)
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (
+      event.key !== 'Enter' ||
+      event.nativeEvent.isComposing ||
+      !selectedHost ||
+      (event.target as HTMLElement).closest('button')
+    ) {
+      return
+    }
+    event.preventDefault()
+    connect(selectedHost)
   }
 
   const showDescription = (event: SyntheticEvent<HTMLButtonElement>, description?: string) => {
@@ -103,7 +150,10 @@ export function ConnectionHub({
         onOpenChange(nextOpen)
       }}
     >
-      <DialogContent className="w-[760px] max-w-[calc(100vw-64px)] max-h-[calc(100vh-88px)] flex flex-col overflow-hidden">
+      <DialogContent
+        className="w-[760px] max-w-[calc(100vw-64px)] max-h-[calc(100vh-88px)] flex flex-col overflow-hidden"
+        onKeyDown={handleKeyDown}
+      >
         <DialogHeader className="flex flex-row items-center gap-2.5 py-3.5 pr-12">
           <PanelsTopLeft className="size-4 text-dim" strokeWidth={1.5} />
           <DialogTitle className="font-sans text-[16px] leading-6 tracking-normal">{t('connections.title')}</DialogTitle>
@@ -136,27 +186,56 @@ export function ConnectionHub({
             />
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto border border-line rounded-sm bg-ink">
+          <div
+            role="listbox"
+            aria-label={t('connections.title')}
+            className="flex-1 min-h-0 overflow-y-auto border border-line rounded-sm bg-ink"
+          >
             {groups.length === 0 && (
               <div className="py-12 text-center font-sans text-[12px] leading-4 text-ghost">
                 {hosts.length === 0 ? t('sidebar.emptyHosts') : t('sidebar.noMatch')}
               </div>
             )}
-            {groups.map(([group, list]) => (
+            {groups.map(([group, list]) => {
+              const isDefaultGroup = group === t('sidebar.defaultGroup') && !hostGroups.some((item) => item.name === group)
+              return (
               <div key={group}>
-                <button
-                  data-connection-group
-                  className="w-full h-8 px-3.5 flex items-center gap-2 border-b border-line text-left cursor-pointer hover:bg-white/[0.02]"
-                  onClick={() => toggleGroup(group)}
-                >
-                  <ChevronRight
-                    className={cn('size-3 text-faint transition-transform', !collapsedGroups.has(group) && 'rotate-90')}
-                  />
-                  <span className="font-mono text-[10px] leading-4 tracking-[0.08em] uppercase text-faint">
-                    {group}
-                  </span>
-                  <span className="ml-auto font-mono text-[10px] leading-4 text-ghost">{list.length}</span>
-                </button>
+                <ContextMenu>
+                  <ContextMenuTrigger asChild>
+                    <button
+                      data-connection-group
+                      className="w-full h-8 px-3.5 flex items-center gap-2 border-b border-line text-left cursor-pointer hover:bg-white/[0.02]"
+                      onClick={() => toggleGroup(group)}
+                    >
+                      <ChevronRight
+                        className={cn('size-3 text-faint transition-transform', !collapsedGroups.has(group) && 'rotate-90')}
+                      />
+                      <span className="font-mono text-[10px] leading-4 tracking-[0.08em] uppercase text-faint">
+                        {group}
+                      </span>
+                      <span className="ml-auto font-mono text-[10px] leading-4 text-ghost">{list.length}</span>
+                    </button>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem
+                      onSelect={() => {
+                        onOpenChange(false)
+                        onNewConnection(isDefaultGroup ? undefined : group)
+                      }}
+                    >
+                      {t('groups.newConnection')}
+                    </ContextMenuItem>
+                    {!isDefaultGroup && (
+                      <>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem onSelect={() => onOpenGroups(group, 'edit')}>{t('groups.rename')}</ContextMenuItem>
+                        <ContextMenuItem className="text-warn data-[highlighted]:text-warn" onSelect={() => onOpenGroups(group, 'delete')}>
+                          {t('groups.delete')}
+                        </ContextMenuItem>
+                      </>
+                    )}
+                  </ContextMenuContent>
+                </ContextMenu>
                 {!collapsedGroups.has(group) &&
                   list.map((host) => {
                     const hasSession = sessionHostIds.has(host.id)
@@ -165,17 +244,21 @@ export function ConnectionHub({
                         <ContextMenuTrigger asChild>
                           <button
                             data-connection-host
+                            role="option"
+                            aria-selected={selectedHostId === host.id}
                             aria-describedby={host.description ? 'connection-host-description-tooltip' : undefined}
                             className={cn(
                               'w-full min-h-11 px-4 py-2 flex items-center gap-2.5 border-b border-white/[0.045] text-left cursor-pointer transition-colors',
                               'hover:bg-white/[0.03]',
-                              activeHostId === host.id && 'bg-white/[0.045]'
+                              activeHostId === host.id && 'bg-surface',
+                              selectedHostId === host.id && 'bg-accent'
                             )}
                             onMouseEnter={(event) => showDescription(event, host.description)}
                             onMouseLeave={hideDescription}
                             onFocus={(event) => showDescription(event, host.description)}
                             onBlur={hideDescription}
-                            onClick={() => connect(host)}
+                            onClick={() => setSelectedHostId(host.id)}
+                            onDoubleClick={() => connect(host)}
                           >
                             <span className={cn('dot', hasSession && 'on')} />
                             <span className="min-w-0 flex-1">
@@ -218,11 +301,12 @@ export function ConnectionHub({
                     )
                   })}
               </div>
-            ))}
+              )
+            })}
           </div>
         </DialogBody>
 
-        <div className="h-10 px-4 flex items-center border-t border-line shrink-0">
+        <div className="min-h-14 px-4 py-2.5 flex items-center gap-3 border-t border-line shrink-0">
           <button
             className="flex items-center gap-1.5 font-mono text-[11px] leading-4 text-faint hover:text-body transition-colors cursor-pointer"
             onClick={() => {
@@ -233,7 +317,23 @@ export function ConnectionHub({
             <KeyRound className="size-3" />
             {t('creds.title')}
           </button>
-          <span className="ml-auto font-sans text-[11px] leading-4 text-ghost">{t('connections.hint')}</span>
+          <button
+            className="flex items-center gap-1.5 font-mono text-[11px] leading-4 text-faint hover:text-body transition-colors cursor-pointer"
+            onClick={() => {
+              onOpenChange(false)
+              onOpenGroups()
+            }}
+          >
+            <FolderCog className="size-3" />
+            {t('groups.title')}
+          </button>
+          <span className="ml-auto hidden min-[620px]:block font-sans text-[11px] leading-4 text-ghost">
+            {t('connections.hint')}
+          </span>
+          <Button variant="solid" size="sm" disabled={!selectedHost} onClick={connectSelected}>
+            <LogIn data-icon="inline-start" />
+            {t('connections.connect')}
+          </Button>
         </div>
       </DialogContent>
       {descriptionTooltip &&

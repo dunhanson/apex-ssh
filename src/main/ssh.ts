@@ -5,7 +5,7 @@ import type { WebContents } from 'electron'
 import type { HostConfig, SessionStatus, TermSize } from '@shared/types'
 import { IPC } from '@shared/types'
 import { addRecent } from './recents'
-import { resolveKeyPath, resolvePassword } from './credentials'
+import { resolveKeyPassphrase, resolveKeyPath, resolvePassword } from './credentials'
 
 /**
  * ssh2 会话管理器：每个会话一个 ssh2 Client + shell 通道，按 sessionId 隔离，支撑多标签。
@@ -75,7 +75,9 @@ function buildConnectConfig(host: HostConfig, size: TermSize): ConnectConfig {
   return {
     ...base,
     privateKey: readFileSync(keyPath),
-    passphrase: host.auth.passphrase || undefined
+    passphrase: host.auth.keyId
+      ? resolveKeyPassphrase(host.auth.keyId) || host.auth.passphrase || undefined
+      : host.auth.passphrase || undefined
   }
 }
 

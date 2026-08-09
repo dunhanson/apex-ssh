@@ -6,6 +6,7 @@ function Toaster() {
     <SonnerToaster
       position="top-center"
       gap={8}
+      visibleToasts={1}
       toastOptions={{
         unstyled: true,
         classNames: {

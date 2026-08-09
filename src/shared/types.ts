@@ -23,10 +23,20 @@ export interface HostConfig {
 /** 新建主机时的入参（id 由主进程生成） */
 export type HostInput = Omit<HostConfig, 'id'>
 
+/** 独立主机分组；未分组为界面虚拟分组，不写入此列表。 */
+export interface HostGroup {
+  name: string
+  order: number
+}
+
 /** 主机配置备份导入结果；凭证本体不属于备份范围 */
 export interface HostBackupResult {
-  status: 'success' | 'cancelled'
+  status: 'success' | 'cancelled' | 'password-required' | 'preview'
   count: number
+  /** 是否为包含登录凭证的加密完整备份 */
+  encrypted?: boolean
+  /** 加密完整备份内容统计 */
+  stats?: EncryptedBackupStats
   /** 导入时新增的主机数 */
   added?: number
   /** 导入时覆盖的同 id 主机数 */
@@ -35,6 +45,19 @@ export interface HostBackupResult {
   unresolvedCredentials?: number
   /** 导出时剔除的直填密码、私钥口令数量 */
   omittedSecrets?: number
+}
+
+export interface EncryptedBackupStats {
+  hosts: number
+  passwords: number
+  keys: number
+  passphrases: number
+}
+
+export interface BackupExportOptions {
+  includeCredentials?: boolean
+  /** 仅在 includeCredentials 为 true 时使用，不会持久化 */
+  password?: string
 }
 
 /** 会话状态机 */
@@ -112,16 +135,27 @@ export interface SftpListResult {
 }
 
 /** 传输任务状态机 */
-export type TransferStatus = 'running' | 'paused' | 'done' | 'error' | 'cancelled'
+export type TransferStatus = 'queued' | 'running' | 'paused' | 'done' | 'error' | 'cancelled'
 
 /** 一个顶层下载项：远程路径 → 本地落点（文件为完整目标路径，目录为目标目录路径） */
 export interface DownloadItem {
   remotePath: string
   localPath: string
+  /** 当前顶层项目的冲突策略；未提供时使用任务默认策略 */
+  conflict?: ConflictPolicy
 }
 
-/** 本地已存在同名目标时的处理策略（对整个任务生效） */
+/** 已存在同名目标时的实际处理策略 */
 export type ConflictPolicy = 'overwrite' | 'skip' | 'rename'
+
+/** 设置中的同名处理策略；ask 表示逐项询问 */
+export type TransferConflictPolicy = 'ask' | ConflictPolicy
+
+/** 一个顶层上传项；remoteName 用于自动重命名后的远端名称 */
+export interface UploadItem {
+  localPath: string
+  remoteName?: string
+}
 
 /** 主 → 渲染：传输进度事件 */
 export interface TransferProgress {
@@ -142,6 +176,8 @@ export interface KeyEntry {
   fingerprint: string
   /** 公钥内容（OpenSSH 单行） */
   publicKey: string
+  /** 只暴露是否存在口令，不向渲染进程返回口令内容 */
+  hasPassphrase?: boolean
   createdAt: number
 }
 
@@ -157,14 +193,135 @@ export interface AppSettings {
   /** 终端字号 px */
   fontSize: number
   cursorStyle: 'block' | 'underline' | 'bar'
+  /** 活动终端光标是否闪烁 */
+  cursorBlink: boolean
   /** 回滚行数 */
   scrollback: number
+  /** 用户输入时是否滚动到终端底部 */
+  scrollOnInput: boolean
+  /** 完成终端文本选择后是否自动复制 */
+  copyOnSelect: boolean
+  /** 粘贴包含换行的内容前是否要求确认 */
+  confirmMultilinePaste: boolean
   /** 界面语言：跟随系统 / 中文 / English */
   language: 'system' | 'zh-CN' | 'en-US'
   /** 是否显示会话信息栏（全部窗口同步） */
   showSessionInfoBar: boolean
   /** 默认下载目录；空串表示每次询问（记住上次选择的目录） */
   downloadDir: string
+  /** 下载目标存在同名项时的默认处理策略 */
+  downloadConflictPolicy: TransferConflictPolicy
+  /** 上传顶层项目与远端同名时的默认处理策略 */
+  uploadConflictPolicy: TransferConflictPolicy
+  /** SFTP 面板打开时的默认布局 */
+  sftpPanelMode: 'panel' | 'split'
+  /** 双栏模式左侧双击本地文件时是否直接上传 */
+  doubleClickUpload: boolean
+  /** 同时运行的上传与下载任务数 */
+  maxConcurrentTransfers: number
+  /** 传输完成后是否允许发送系统通知 */
+  notifyTransferComplete: boolean
+  /** 备份时是否默认包含登录凭证 */
+  backupIncludeCredentials: boolean
+  /** 加密备份默认使用的密码方式；只保存方式，不保存密码内容 */
+  backupPasswordSource: 'custom' | 'random'
+}
+
+/**
+ * 应用更新状态机：
+ * idle → checking → downloading → downloaded → installing（用户确认立即安装）
+ *              ↘ up-to-date          ↘ error（检查或下载失败，可重试）
+ *              ↘ available（仅 checkOnly 开发环境：发现新版本但不下载）
+ * unsupported：非 Windows 环境，更新能力整体不可用
+ */
+export type UpdateState =
+  | 'idle'
+  | 'checking'
+  | 'up-to-date'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'installing'
+  | 'error'
+  | 'unsupported'
+
+/** 更新失败分类：用于渲染端展示友好文案，原始错误不进 UI */
+export type UpdateErrorCode = 'network' | 'no-release' | 'verify' | 'unknown'
+
+/** 主 → 渲染：更新状态快照（状态广播与 getStatus 共用同一形状） */
+export interface UpdateStatus {
+  state: UpdateState
+  /** 当前环境是否支持检查更新（Windows 安装版完整支持，Windows 开发环境仅检查） */
+  supported: boolean
+  /** 仅检查不下载：开发环境（未打包 Windows）为 true，不自动检查、不下载、不安装 */
+  checkOnly: boolean
+  /** 当前版本（app.getVersion()） */
+  currentVersion: string
+  /** 检测到 / 已下载的新版本号 */
+  version?: string
+  /** 下载进度百分比 0-100（downloading 时有效） */
+  progress?: number
+  /** 失败分类（error 时有效），渲染端据此选择友好文案 */
+  errorCode?: UpdateErrorCode
+  /** 原始错误信息，仅供诊断日志，不直接展示 */
+  message?: string
+}
+
+/** 云同步连接参数（渲染端输入；password 为空表示沿用已保存的密码） */
+export interface CloudSyncConnectionInput {
+  host: string
+  port: number
+  database: string
+  user: string
+  /** 敏感：仅在渲染 → 主方向传递，主进程经 safeStorage 加密后持久化 */
+  password?: string
+}
+
+/** 云同步连接参数的安全视图（不含密码） */
+export interface CloudSyncConnectionView {
+  host: string
+  port: number
+  database: string
+  user: string
+}
+
+export interface CloudSyncGenerateKeyResult {
+  /** 当前界面是否可请求主进程复制这把新密钥一次 */
+  copyAvailable: boolean
+  /** null 表示生成及后续云端处理成功 */
+  error: string | null
+}
+
+/** 云同步失败分类：渲染端据此选择友好文案，原始错误只进主进程日志 */
+export type CloudSyncErrorCode = 'connection' | 'key' | 'format' | 'unknown'
+
+/** 一次同步的结果统计（不含任何敏感内容） */
+export interface CloudSyncResult {
+  /** 加密上传到云端的记录数（含删除墓碑） */
+  pushed: number
+  /** 从云端拉取并应用到本地的记录数 */
+  pulled: number
+  /** 因远端删除墓碑而删除的本地记录数 */
+  deleted: number
+  /** 解密 / 校验 / 写入失败而跳过的记录数 */
+  skipped: number
+  /** 双方同时变更（远端胜出）的记录数 */
+  conflicts: number
+}
+
+/** 主 → 渲染：云同步状态快照（状态广播与 getState 共用同一形状） */
+export interface CloudSyncState {
+  /** 是否已保存完整的数据库连接参数 */
+  configured: boolean
+  enabled: boolean
+  hasKey: boolean
+  syncing: boolean
+  /** 上次成功同步时间（ms epoch） */
+  lastSyncAt?: number
+  lastResult?: CloudSyncResult
+  errorCode?: CloudSyncErrorCode
+  /** 原始错误信息，仅供诊断，渲染端优先按 errorCode 展示 */
+  message?: string
 }
 
 /** IPC 通道名常量，避免三端各自硬编码 */
@@ -176,6 +333,15 @@ export const IPC = {
   HostsUpdate: 'hosts:update',
   HostsExport: 'hosts:export',
   HostsImport: 'hosts:import',
+  HostsImportUnlock: 'hosts:import-unlock',
+  HostsImportCommit: 'hosts:import-commit',
+  HostsImportCancel: 'hosts:import-cancel',
+  HostsBackupStats: 'hosts:backup-stats',
+  GroupsList: 'groups:list',
+  GroupsCreate: 'groups:create',
+  GroupsRename: 'groups:rename',
+  GroupsDelete: 'groups:delete',
+  GroupsReorder: 'groups:reorder',
   ClipboardWriteText: 'clipboard:write-text',
   ClipboardReadText: 'clipboard:read-text',
   DialogPickFile: 'dialog:pick-file',
@@ -217,6 +383,9 @@ export const IPC = {
   SftpProgress: 'sftp:progress',
   LocalHome: 'local:home',
   LocalList: 'local:list',
+  LocalMkdir: 'local:mkdir',
+  LocalOpen: 'local:open',
+  LocalReveal: 'local:reveal',
   LocalRename: 'local:rename',
   LocalRemove: 'local:remove',
   CredsListKeys: 'creds:list-keys',
@@ -232,7 +401,26 @@ export const IPC = {
   SettingsGet: 'settings:get',
   SettingsSet: 'settings:set',
   /** 主 → 渲染：设置变更事件，payload 为 AppSettings */
-  SettingsChanged: 'settings:changed'
+  SettingsChanged: 'settings:changed',
+  UpdaterGetStatus: 'updater:get-status',
+  UpdaterCheck: 'updater:check',
+  UpdaterRestartAndInstall: 'updater:restart-and-install',
+  /** 主 → 渲染：更新状态变更事件，payload 为 UpdateStatus */
+  UpdaterStatusChanged: 'updater:status-changed',
+  CloudSyncGetState: 'cloud-sync:get-state',
+  CloudSyncGetConnection: 'cloud-sync:get-connection',
+  CloudSyncSaveConnection: 'cloud-sync:save-connection',
+  CloudSyncTestConnection: 'cloud-sync:test-connection',
+  CloudSyncGenerateKey: 'cloud-sync:generate-key',
+  CloudSyncCopyGeneratedKey: 'cloud-sync:copy-generated-key',
+  CloudSyncSetKey: 'cloud-sync:set-key',
+  CloudSyncSetEnabled: 'cloud-sync:set-enabled',
+  CloudSyncSyncNow: 'cloud-sync:sync-now',
+  CloudSyncClearRemote: 'cloud-sync:clear-remote',
+  /** 主 → 渲染：云同步状态变更事件，payload 为 CloudSyncState */
+  CloudSyncStateChanged: 'cloud-sync:state-changed',
+  /** 主 → 渲染：同步拉取应用了本地变更（应重新加载主机与凭证列表） */
+  CloudSyncApplied: 'cloud-sync:applied'
 } as const
 
 /** 预加载桥暴露给渲染进程的 window.api 形状 */
@@ -244,9 +432,25 @@ export interface RendererApi {
     delete: (id: string) => Promise<void>
     update: (id: string, input: HostInput) => Promise<HostConfig>
     /** 导出主机配置；不包含直填密码、私钥内容或私钥口令 */
-    exportBackup: () => Promise<HostBackupResult>
+    exportBackup: (options?: BackupExportOptions) => Promise<HostBackupResult>
     /** 从备份文件导入；在主进程确认合并或替换后执行 */
-    importBackup: () => Promise<HostBackupResult>
+    importBackup: (options?: Pick<BackupExportOptions, 'includeCredentials'>) => Promise<HostBackupResult>
+    /** 使用备份密码解锁已选择的加密备份，并返回不含明文凭证的预览 */
+    unlockEncryptedBackup: (password: string) => Promise<HostBackupResult>
+    /** 按预览确认后的模式提交加密备份导入 */
+    commitEncryptedBackup: (mode: 'merge' | 'replace') => Promise<HostBackupResult>
+    /** 取消当前待处理的加密备份并清理主进程中的明文载荷 */
+    cancelEncryptedBackup: () => Promise<void>
+    /** 只统计完整备份条目数量，不读取或返回凭证明文 */
+    getBackupStats: () => Promise<EncryptedBackupStats>
+  }
+  groups: {
+    list: () => Promise<HostGroup[]>
+    create: (name: string) => Promise<HostGroup>
+    rename: (currentName: string, nextName: string) => Promise<HostGroup>
+    /** 删除分组但保留主机，关联主机自动移入未分组。 */
+    delete: (name: string) => Promise<void>
+    reorder: (names: string[]) => Promise<HostGroup[]>
   }
   dialog: {
     /** 打开文件选择框（选私钥等），取消时返回 null */
@@ -305,7 +509,7 @@ export interface RendererApi {
     upload: (
       sessionId: string,
       taskId: string,
-      localPaths: string[],
+      items: UploadItem[],
       remoteDir: string
     ) => Promise<{ total: number } | { error: string }>
     /** 批量下载远程文件/目录（含嵌套）到本地，返回总字节数或错误 */
@@ -328,6 +532,12 @@ export interface RendererApi {
   local: {
     home: () => Promise<string>
     list: (path: string) => Promise<SftpListResult>
+    /** 在指定本地目录中新建文件夹；返回 null 成功，否则错误信息 */
+    mkdir: (path: string, name: string) => Promise<string | null>
+    /** 使用系统默认程序打开本地文件或目录；返回 null 成功，否则错误信息 */
+    open: (path: string) => Promise<string | null>
+    /** 在系统文件管理器中显示本地项目；返回 null 成功，否则错误信息 */
+    reveal: (path: string) => Promise<string | null>
     rename: (path: string, name: string) => Promise<string | null>
     remove: (paths: string[]) => Promise<string | null>
   }
@@ -356,6 +566,42 @@ export interface RendererApi {
     /** 部分更新并广播 SettingsChanged */
     set: (patch: Partial<AppSettings>) => Promise<AppSettings>
     onChanged: (cb: (settings: AppSettings) => void) => () => void
+  }
+  updater: {
+    /** 当前更新状态快照；不支持的环境返回 state = unsupported */
+    getStatus: () => Promise<UpdateStatus>
+    /** 手动检查更新；检查/下载进行中时直接返回当前状态 */
+    check: () => Promise<UpdateStatus>
+    /** 已下载后立即静默安装并重启；仅 downloaded 状态有效，其他状态为空操作 */
+    restartAndInstall: () => Promise<void>
+    /** 订阅更新状态变更，返回取消订阅函数 */
+    onStatusChanged: (cb: (status: UpdateStatus) => void) => () => void
+  }
+  cloudSync: {
+    /** 当前云同步状态快照 */
+    getState: () => Promise<CloudSyncState>
+    /** 已保存的连接参数（不含密码）；未配置返回 null */
+    getConnection: () => Promise<CloudSyncConnectionView | null>
+    /** 保存连接参数；返回 null 成功，否则错误信息。password 为空沿用已保存密码 */
+    saveConnection: (input: CloudSyncConnectionInput) => Promise<string | null>
+    /** 用给定参数试连并初始化表结构；不落盘，返回 null 成功 */
+    testConnection: (input: CloudSyncConnectionInput) => Promise<string | null>
+    /** 生成新的 24 位随机同步密钥并持久化；已启用时会清空云端并全量重写 */
+    generateKey: () => Promise<CloudSyncGenerateKeyResult>
+    /** 用户主动复制刚生成的同步密钥；成功后同一密钥不可再次复制 */
+    copyGeneratedKey: () => Promise<boolean>
+    /** 填入其他设备已在使用的同步密钥；云端有数据时先校验可解密 */
+    setKey: (key: string) => Promise<string | null>
+    /** 启用 / 停用云同步；启用时立即执行一次同步 */
+    setEnabled: (enabled: boolean) => Promise<string | null>
+    /** 立即同步；返回 null 成功，否则错误信息 */
+    syncNow: () => Promise<string | null>
+    /** 清空云端全部同步记录（保留表结构） */
+    clearRemote: () => Promise<string | null>
+    /** 订阅云同步状态变更，返回取消订阅函数 */
+    onStateChanged: (cb: (state: CloudSyncState) => void) => () => void
+    /** 订阅同步应用本地变更事件（重新加载主机与凭证列表） */
+    onApplied: (cb: () => void) => () => void
   }
   clipboard: {
     /** 通过 Electron 主进程写入系统剪贴板，避免 Chromium 权限差异 */

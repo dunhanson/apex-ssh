@@ -1,16 +1,22 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { promises as fsp } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join, parse, resolve } from 'node:path'
-import type { ConflictPolicy, DetachedSessionInfo, DownloadItem, HostConfig, HostInput, SftpEntry, SftpListResult, TermSize } from '@shared/types'
+import type { ConflictPolicy, DetachedSessionInfo, DownloadItem, HostConfig, HostInput, SftpEntry, SftpListResult, TermSize, UploadItem } from '@shared/types'
 import { IPC } from '@shared/types'
 import {
   addHost,
+  createGroup,
   createHostBackup,
+  deleteGroup,
   deleteHost,
   importHosts,
+  importGroups,
   listHosts,
+  listGroups,
   parseHostBackup,
+  renameGroup,
+  reorderGroups,
   updateHost
 } from './hosts'
 import { clearRecents, listRecents, removeRecent } from './recents'
@@ -19,6 +25,21 @@ import * as creds from './credentials'
 import * as settings from './settings'
 import * as sftp from './sftp'
 import * as ssh from './ssh'
+import { initUpdater, registerUpdaterIpc } from './updater'
+import { initCloudSync, notifyLocalChange, registerCloudSyncIpc } from './cloud-sync'
+import {
+  decryptCompleteBackup,
+  encryptCompleteBackup,
+  MAX_ENCRYPTED_BACKUP_BYTES,
+  parseEncryptedContainer,
+  writeEncryptedBackupFile,
+  type CompleteBackupPayload
+} from './encrypted-backup'
+import {
+  createCompleteBackupPayload,
+  getCompleteBackupStats,
+  importCompleteBackupPayload
+} from './complete-backup'
 
 // Windows 下被完全遮挡的窗口会被 Chromium 判定为 hidden 并停止 BeginFrame，
 // xterm 的渲染循环（rAF 驱动）随之停摆；终端应用需要遮挡时也能持续渲染
@@ -26,6 +47,27 @@ app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
 
 /** 迁出会话的终端快照：sessionId → snapshot（新窗口 attach 后清掉） */
 const detachedSnapshots = new Map<string, string>()
+
+interface PendingEncryptedImport {
+  container: unknown
+  payload?: CompleteBackupPayload
+  expires: NodeJS.Timeout
+}
+
+const pendingEncryptedImports = new Map<number, PendingEncryptedImport>()
+
+function clearPendingEncryptedImport(webContentsId: number): void {
+  const pending = pendingEncryptedImports.get(webContentsId)
+  if (pending) clearTimeout(pending.expires)
+  pendingEncryptedImports.delete(webContentsId)
+}
+
+function setPendingEncryptedImport(webContentsId: number, value: Omit<PendingEncryptedImport, 'expires'>): void {
+  clearPendingEncryptedImport(webContentsId)
+  const expires = setTimeout(() => clearPendingEncryptedImport(webContentsId), 5 * 60 * 1000)
+  expires.unref()
+  pendingEncryptedImports.set(webContentsId, { ...value, expires })
+}
 
 function baseWindowOptions(width: number, height: number) {
   return {
@@ -106,11 +148,41 @@ function registerIpc(): void {
   ipcMain.handle(IPC.ClipboardReadText, () => clipboard.readText())
 
   ipcMain.handle(IPC.HostsList, () => listHosts())
-  ipcMain.handle(IPC.HostsAdd, (_e, input: HostInput) => addHost(input))
-  ipcMain.handle(IPC.HostsDelete, (_e, id: string) => deleteHost(id))
-  ipcMain.handle(IPC.HostsUpdate, (_e, id: string, input: HostInput) => updateHost(id, input))
-  ipcMain.handle(IPC.HostsExport, async (e) => {
+  ipcMain.handle(IPC.HostsAdd, (_e, input: HostInput) => {
+    const host = addHost(input)
+    notifyLocalChange()
+    return host
+  })
+  ipcMain.handle(IPC.HostsDelete, (_e, id: string) => {
+    deleteHost(id)
+    notifyLocalChange()
+  })
+  ipcMain.handle(IPC.HostsUpdate, (_e, id: string, input: HostInput) => {
+    const host = updateHost(id, input)
+    notifyLocalChange()
+    return host
+  })
+  ipcMain.handle(IPC.HostsExport, async (e, options?: { includeCredentials?: boolean; password?: string }) => {
     const win = BrowserWindow.fromWebContents(e.sender)
+    if (options?.includeCredentials) {
+      const payload = createCompleteBackupPayload()
+      const encrypted = await encryptCompleteBackup(payload, options.password ?? '')
+      const result = await dialog.showSaveDialog(win!, {
+        title: '导出加密完整备份',
+        defaultPath: `apex-complete-${new Date().toISOString().slice(0, 10)}.apex-backup`,
+        filters: [{ name: 'Apex 加密备份', extensions: ['apex-backup'] }]
+      })
+      if (result.canceled || !result.filePath) {
+        return { status: 'cancelled', count: 0, encrypted: true }
+      }
+      await writeEncryptedBackupFile(result.filePath, encrypted)
+      return {
+        status: 'success',
+        count: payload.hosts.length,
+        encrypted: true,
+        stats: payload.stats
+      }
+    }
     const backup = createHostBackup(creds.listKeys(), creds.listPasswords())
     const result = await dialog.showSaveDialog(win!, {
       title: '导出主机配置备份',
@@ -130,21 +202,40 @@ function registerIpc(): void {
       omittedSecrets: backup.security.omittedSecrets
     }
   })
-  ipcMain.handle(IPC.HostsImport, async (e) => {
+  ipcMain.handle(IPC.HostsImport, async (e, options?: { includeCredentials?: boolean }) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     const picked = await dialog.showOpenDialog(win!, {
       title: '导入主机配置备份',
       properties: ['openFile'],
-      filters: [{ name: 'Apex 主机备份', extensions: ['json'] }]
+      filters: options?.includeCredentials
+        ? [{ name: 'Apex 加密备份', extensions: ['apex-backup'] }]
+        : [{ name: 'Apex 主机备份', extensions: ['json'] }]
     })
     if (picked.canceled || !picked.filePaths[0]) {
       return { status: 'cancelled', count: 0 }
     }
     const file = picked.filePaths[0]
-    if ((await fsp.stat(file)).size > 5 * 1024 * 1024) {
-      throw new Error('主机备份文件不能超过 5 MB')
+    const fileSize = (await fsp.stat(file)).size
+    if (fileSize > MAX_ENCRYPTED_BACKUP_BYTES) {
+      throw new Error('备份文件不能超过 50 MB')
     }
-    const backup = parseHostBackup(JSON.parse(await fsp.readFile(file, 'utf8')))
+    const value = JSON.parse(await fsp.readFile(file, 'utf8')) as unknown
+    if (
+      value &&
+      typeof value === 'object' &&
+      'format' in value &&
+      value.format === 'apex-encrypted-backup'
+    ) {
+      if (!options?.includeCredentials) {
+        throw new Error('请开启“包含登录凭证”后导入加密备份')
+      }
+      const container = parseEncryptedContainer(value)
+      setPendingEncryptedImport(e.sender.id, { container })
+      return { status: 'password-required', count: 0, encrypted: true }
+    }
+    if (options?.includeCredentials) throw new Error('所选文件不是 Apex 加密备份')
+    if (fileSize > 5 * 1024 * 1024) throw new Error('普通主机备份文件不能超过 5 MB')
+    const backup = parseHostBackup(value)
     const confirmation = await dialog.showMessageBox(win!, {
       type: 'question',
       title: '导入主机配置',
@@ -157,7 +248,10 @@ function registerIpc(): void {
       noLink: true
     })
     if (confirmation.response === 0) return { status: 'cancelled', count: 0 }
-    const result = importHosts(backup.hosts, confirmation.response === 2 ? 'replace' : 'merge')
+    const importMode = confirmation.response === 2 ? 'replace' : 'merge'
+    const result = importHosts(backup.hosts, importMode)
+    importGroups(backup.groups, importMode)
+    notifyLocalChange()
     const localKeyIds = new Set(creds.listKeys().map((entry) => entry.id))
     const localPasswordIds = new Set(creds.listPasswords().map((entry) => entry.id))
     const unresolvedCredentials = backup.hosts.filter((host) =>
@@ -173,6 +267,53 @@ function registerIpc(): void {
       omittedSecrets: backup.security.omittedSecrets
     }
   })
+  ipcMain.handle(IPC.HostsImportUnlock, async (e, password: string) => {
+    const pending = pendingEncryptedImports.get(e.sender.id)
+    if (!pending) throw new Error('待导入的加密备份已失效，请重新选择文件')
+    const payload = await decryptCompleteBackup(pending.container, password)
+    setPendingEncryptedImport(e.sender.id, { container: pending.container, payload })
+    return {
+      status: 'preview',
+      count: payload.hosts.length,
+      encrypted: true,
+      stats: payload.stats
+    }
+  })
+  ipcMain.handle(IPC.HostsImportCommit, async (e, mode: 'merge' | 'replace') => {
+    const pending = pendingEncryptedImports.get(e.sender.id)
+    if (!pending?.payload) throw new Error('加密备份尚未解锁或已失效')
+    if (mode !== 'merge' && mode !== 'replace') throw new Error('导入模式无效')
+    try {
+      const result = await importCompleteBackupPayload(pending.payload, mode)
+      notifyLocalChange()
+      return {
+        status: 'success',
+        count: pending.payload.hosts.length,
+        encrypted: true,
+        stats: pending.payload.stats,
+        ...result
+      }
+    } finally {
+      clearPendingEncryptedImport(e.sender.id)
+    }
+  })
+  ipcMain.handle(IPC.HostsImportCancel, (e) => {
+    clearPendingEncryptedImport(e.sender.id)
+  })
+  ipcMain.handle(IPC.HostsBackupStats, () => getCompleteBackupStats())
+
+  ipcMain.handle(IPC.GroupsList, () => listGroups())
+  ipcMain.handle(IPC.GroupsCreate, (_e, name: string) => createGroup(name))
+  ipcMain.handle(IPC.GroupsRename, (_e, currentName: string, nextName: string) => {
+    const group = renameGroup(currentName, nextName)
+    notifyLocalChange()
+    return group
+  })
+  ipcMain.handle(IPC.GroupsDelete, (_e, name: string) => {
+    deleteGroup(name)
+    notifyLocalChange()
+  })
+  ipcMain.handle(IPC.GroupsReorder, (_e, names: string[]) => reorderGroups(names))
 
   ipcMain.handle(IPC.RecentsList, () => listRecents())
   ipcMain.handle(IPC.RecentsRemove, (_e, hostId: string) => removeRecent(hostId))
@@ -245,8 +386,8 @@ function registerIpc(): void {
     sftp.rename(sessionId, oldPath, newPath)
   )
   ipcMain.handle(IPC.SftpRemove, (_e, sessionId: string, paths: string[]) => sftp.remove(sessionId, paths))
-  ipcMain.handle(IPC.SftpUpload, (e, sessionId: string, taskId: string, localPaths: string[], remoteDir: string) =>
-    sftp.startUpload(e.sender, sessionId, taskId, localPaths, remoteDir)
+  ipcMain.handle(IPC.SftpUpload, (e, sessionId: string, taskId: string, items: UploadItem[], remoteDir: string) =>
+    sftp.startUpload(e.sender, sessionId, taskId, items, remoteDir)
   )
   ipcMain.handle(IPC.SftpDownload, (e, sessionId: string, taskId: string, items: DownloadItem[], conflict: ConflictPolicy) =>
     sftp.startDownload(e.sender, sessionId, taskId, items, conflict)
@@ -278,30 +419,57 @@ function registerIpc(): void {
   ipcMain.on(IPC.SftpCancel, (_e, taskId: string) => sftp.cancelTransfer(taskId))
 
   ipcMain.handle(IPC.CredsListKeys, () => creds.listKeys())
-  ipcMain.handle(IPC.CredsGenerateKey, (_e, name: string) => creds.generateKey(name))
-  ipcMain.handle(IPC.CredsImportKey, (_e, name: string, sourcePath: string) =>
-    creds.importKey(name, sourcePath)
-  )
-  ipcMain.handle(IPC.CredsReplaceKey, (_e, id: string, sourcePath: string) =>
-    creds.replaceKey(id, sourcePath)
-  )
-  ipcMain.handle(IPC.CredsRenameKey, (_e, id: string, name: string) =>
-    creds.renameKey(id, name)
-  )
-  ipcMain.handle(IPC.CredsDeleteKey, (_e, id: string) => creds.deleteKey(id))
+  ipcMain.handle(IPC.CredsGenerateKey, async (_e, name: string) => {
+    const result = await creds.generateKey(name)
+    if ('entry' in result) notifyLocalChange()
+    return result
+  })
+  ipcMain.handle(IPC.CredsImportKey, async (_e, name: string, sourcePath: string) => {
+    const result = await creds.importKey(name, sourcePath)
+    if ('entry' in result) notifyLocalChange()
+    return result
+  })
+  ipcMain.handle(IPC.CredsReplaceKey, async (_e, id: string, sourcePath: string) => {
+    const result = await creds.replaceKey(id, sourcePath)
+    if ('entry' in result) notifyLocalChange()
+    return result
+  })
+  ipcMain.handle(IPC.CredsRenameKey, (_e, id: string, name: string) => {
+    const error = creds.renameKey(id, name)
+    if (error === null) notifyLocalChange()
+    return error
+  })
+  ipcMain.handle(IPC.CredsDeleteKey, (_e, id: string) => {
+    const error = creds.deleteKey(id)
+    if (error === null) notifyLocalChange()
+    return error
+  })
   ipcMain.handle(IPC.CredsListPasswords, () => creds.listPasswords())
-  ipcMain.handle(IPC.CredsAddPassword, (_e, label: string, password: string) =>
-    creds.addPassword(label, password)
-  )
-  ipcMain.handle(IPC.CredsUpdatePassword, (_e, id: string, label: string, password: string) =>
-    creds.updatePassword(id, label, password)
-  )
-  ipcMain.handle(IPC.CredsDeletePassword, (_e, id: string) => creds.deletePassword(id))
+  ipcMain.handle(IPC.CredsAddPassword, (_e, label: string, password: string) => {
+    const meta = creds.addPassword(label, password)
+    notifyLocalChange()
+    return meta
+  })
+  ipcMain.handle(IPC.CredsUpdatePassword, (_e, id: string, label: string, password: string) => {
+    const error = creds.updatePassword(id, label, password)
+    if (error === null) notifyLocalChange()
+    return error
+  })
+  ipcMain.handle(IPC.CredsDeletePassword, (_e, id: string) => {
+    const error = creds.deletePassword(id)
+    if (error === null) notifyLocalChange()
+    return error
+  })
 
   ipcMain.handle(IPC.SettingsGet, () => settings.getSettings())
-  ipcMain.handle(IPC.SettingsSet, (_e, patch: Parameters<typeof settings.setSettings>[0]) =>
-    settings.setSettings(patch)
-  )
+  ipcMain.handle(IPC.SettingsSet, (_e, patch: Parameters<typeof settings.setSettings>[0]) => {
+    const next = settings.setSettings(patch)
+    sftp.refreshTransferQueue()
+    return next
+  })
+
+  registerUpdaterIpc()
+  registerCloudSyncIpc()
 
   ipcMain.handle(IPC.LocalHome, () => homedir())
   ipcMain.handle(IPC.LocalList, async (_e, path: string): Promise<SftpListResult> => {
@@ -329,6 +497,34 @@ function registerIpc(): void {
       return { path, entries }
     } catch (err) {
       return { path, entries: [], error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+  ipcMain.handle(IPC.LocalMkdir, async (_e, path: string, name: string): Promise<string | null> => {
+    try {
+      const nextName = name.trim()
+      if (!nextName || nextName === '.' || nextName === '..' || basename(nextName) !== nextName) {
+        throw new Error('文件夹名称不能包含路径分隔符')
+      }
+      await fsp.mkdir(join(resolve(path), nextName))
+      return null
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err)
+    }
+  })
+  ipcMain.handle(IPC.LocalOpen, async (_e, path: string): Promise<string | null> => {
+    try {
+      const error = await shell.openPath(resolve(path))
+      return error || null
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err)
+    }
+  })
+  ipcMain.handle(IPC.LocalReveal, async (_e, path: string): Promise<string | null> => {
+    try {
+      shell.showItemInFolder(resolve(path))
+      return null
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err)
     }
   })
   ipcMain.handle(IPC.LocalRename, async (_e, path: string, name: string): Promise<string | null> => {
@@ -362,6 +558,10 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   registerIpc()
   createWindow()
+  // 后台初始化更新服务：仅打包后的 Windows 生效，内部延迟触发首次检查
+  initUpdater()
+  // 后台初始化云同步：仅在用户已启用时生效，内部延迟触发首次同步
+  initCloudSync()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

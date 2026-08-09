@@ -194,7 +194,7 @@ export function CredentialsDialog({ open, onOpenChange, onBack }: CredentialsDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[520px]">
+      <DialogContent>
         <DialogHeader className="flex flex-row items-center gap-2.5 pr-12">
           <button
             className="icon-btn -ml-1"
@@ -216,22 +216,22 @@ export function CredentialsDialog({ open, onOpenChange, onBack }: CredentialsDia
 
           {tab === 'keys' ? (
             <>
-              {/* 生成 / 导入行 */}
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2">
                 <Input
                   placeholder={t('creds.namePlaceholder')}
                   value={keyName}
                   onChange={(e) => setKeyName(e.target.value)}
-                  className="flex-1"
                 />
-                <Button type="button" size="sm" variant="solid" disabled={!keyName.trim() || busy} onClick={handleGenerate}>
-                  <Plus className="size-3.5 mr-1" />
-                  {t('creds.generate')}
-                </Button>
-                <Button type="button" size="sm" disabled={busy} onClick={handleImport}>
-                  <FileKey className="size-3.5 mr-1" />
-                  {t('creds.import')}
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button type="button" variant="solid" disabled={!keyName.trim() || busy} onClick={handleGenerate}>
+                    <Plus data-icon="inline-start" />
+                    {t('creds.generate')}
+                  </Button>
+                  <Button type="button" variant="solid" disabled={busy} onClick={handleImport}>
+                    <FileKey data-icon="inline-start" />
+                    {t('creds.import')}
+                  </Button>
+                </div>
               </div>
 
               <div className="max-h-[300px] overflow-y-auto -mx-1 px-1">
@@ -271,18 +271,19 @@ export function CredentialsDialog({ open, onOpenChange, onBack }: CredentialsDia
                           {k.fingerprint} · {fmtDate(k.createdAt)}
                         </div>
                       </div>
-                      <button className="icon-btn" title={t('creds.editKey')} onClick={() => beginRenameKey(k)}>
+                      <button className="icon-btn" title={t('creds.editKey')} aria-label={t('creds.editKey')} onClick={() => beginRenameKey(k)}>
                         <Pencil className="size-3.5" />
                       </button>
-                      <button className="icon-btn" title={t('creds.replaceKey')} onClick={() => handleReplaceKey(k)}>
+                      <button className="icon-btn" title={t('creds.replaceKey')} aria-label={t('creds.replaceKey')} onClick={() => handleReplaceKey(k)}>
                         <RefreshCw className="size-3.5" />
                       </button>
-                      <button className="icon-btn" title={t('creds.copyPub')} onClick={() => copyPub(k)}>
+                      <button className="icon-btn" title={t('creds.copyPub')} aria-label={t('creds.copyPub')} onClick={() => copyPub(k)}>
                         <Copy className="size-3.5" />
                       </button>
                       <button
                         className="icon-btn hover:!text-danger"
                         title={t('creds.deleteKey')}
+                        aria-label={t('creds.deleteKey')}
                         onClick={() => handleDeleteKey(k)}
                       >
                         <Trash2 className="size-3.5" />
@@ -294,31 +295,42 @@ export function CredentialsDialog({ open, onOpenChange, onBack }: CredentialsDia
             </>
           ) : (
             <>
-              {/* 添加密码行 */}
-              <div className="flex gap-2">
-                <Input
-                  placeholder={t('creds.passwordLabelPlaceholder')}
-                  value={pwLabel}
-                  onChange={(e) => setPwLabel(e.target.value)}
-                  className="w-[180px] shrink-0"
-                />
-                <Input
-                  type="password"
-                  placeholder={t('creds.passwordValuePlaceholder')}
-                  value={pwValue}
-                  onChange={(e) => setPwValue(e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="solid"
-                  disabled={!pwLabel.trim() || !pwValue || busy}
-                  onClick={handleAddPassword}
-                >
-                  <Plus className="size-3.5 mr-1" />
-                  {t('creds.addPassword')}
-                </Button>
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2 max-[520px]:grid-cols-1">
+                  <Input
+                    placeholder={t('creds.passwordLabelPlaceholder')}
+                    value={pwLabel}
+                    onChange={(e) => setPwLabel(e.target.value)}
+                  />
+                  <Input
+                    type="password"
+                    placeholder={t('creds.passwordValuePlaceholder')}
+                    value={pwValue}
+                    onChange={(e) => setPwValue(e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="solid"
+                    disabled={!pwLabel.trim() || !pwValue || busy}
+                    onClick={handleAddPassword}
+                  >
+                    <Plus data-icon="inline-start" />
+                    {t('creds.addPassword')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => {
+                      setPwLabel('')
+                      setPwValue('')
+                    }}
+                  >
+                    {t('creds.cancelAddPassword')}
+                  </Button>
+                </div>
               </div>
 
               <div className="max-h-[300px] overflow-y-auto -mx-1 px-1">
@@ -362,10 +374,10 @@ export function CredentialsDialog({ open, onOpenChange, onBack }: CredentialsDia
                               if (e.key === 'Escape') setEditingPasswordId(null)
                             }}
                           />
-                          <button className="icon-btn" title={t('creds.savePasswordChanges')} onClick={() => submitPasswordEdit(p)}>
+                          <button className="icon-btn" title={t('creds.savePasswordChanges')} aria-label={t('creds.savePasswordChanges')} onClick={() => submitPasswordEdit(p)}>
                             <Check className="size-3.5" />
                           </button>
-                          <button className="icon-btn" title={t('creds.cancelEdit')} onClick={() => setEditingPasswordId(null)}>
+                          <button className="icon-btn" title={t('creds.cancelEdit')} aria-label={t('creds.cancelEdit')} onClick={() => setEditingPasswordId(null)}>
                             <X className="size-3.5" />
                           </button>
                         </div>
@@ -381,12 +393,13 @@ export function CredentialsDialog({ open, onOpenChange, onBack }: CredentialsDia
                             </div>
                             <div className="font-mono text-[10px] text-ghost">{fmtDate(p.createdAt)}</div>
                           </div>
-                          <button className="icon-btn" title={t('creds.editPassword')} onClick={() => beginEditPassword(p)}>
+                          <button className="icon-btn" title={t('creds.editPassword')} aria-label={t('creds.editPassword')} onClick={() => beginEditPassword(p)}>
                             <Pencil className="size-3.5" />
                           </button>
                           <button
                             className="icon-btn hover:!text-danger"
                             title={t('creds.deletePassword')}
+                            aria-label={t('creds.deletePassword')}
                             onClick={() => handleDeletePassword(p)}
                           >
                             <Trash2 className="size-3.5" />
