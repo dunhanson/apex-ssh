@@ -6,6 +6,7 @@ import { TabBar, type PaneSide, type TabAction, type WorkspaceTab } from '@/comp
 import { TerminalView } from '@/components/TerminalView'
 import { SessionInfoBar } from '@/components/SessionInfoBar'
 import { SftpPanel } from '@/components/SftpPanel'
+import { MonitorPanel } from '@/components/MonitorPanel'
 import { ConnectionDialog } from '@/components/ConnectionDialog'
 import { CredentialsDialog } from '@/components/CredentialsDialog'
 import { SettingsWorkspace } from '@/components/SettingsDialog'
@@ -48,8 +49,9 @@ export default function App() {
   const [blankTabs, setBlankTabs] = useState<Set<string>>(() => new Set())
   const [focusSide, setFocusSide] = useState<PaneSide>('left')
   const [ratio, setRatio] = useState(0.5)
-  // 每会话独立的 SFTP 开关状态（面板本体属 M3）
+  // 每会话独立的 SFTP / 监控开关状态（面板本体属 M3）
   const [sftpOpen, setSftpOpen] = useState<Record<string, boolean>>({})
+  const [monitorOpen, setMonitorOpen] = useState<Record<string, boolean>>({})
   const [dialogOpen, setDialogOpen] = useState(false)
   const [connectionDialogFromHub, setConnectionDialogFromHub] = useState(false)
   const [editingHost, setEditingHost] = useState<HostConfig | null>(null)
@@ -144,6 +146,13 @@ export default function App() {
         wasConnectedRef.current.add(ev.sessionId)
         manualRef.current.delete(ev.sessionId)
         clearRetry(ev.sessionId)
+        if (settings.monitorEnabledByDefault) {
+          setMonitorOpen((prev) => {
+            if (prev[ev.sessionId]) return prev
+            setSftpOpen((s) => ({ ...s, [ev.sessionId]: false }))
+            return { ...prev, [ev.sessionId]: true }
+          })
+        }
         const key = `${ev.sessionId}:connected`
         if (!toastedRef.current.has(key)) {
           toastedRef.current.add(key)
@@ -166,7 +175,7 @@ export default function App() {
         }
       }
     })
-  }, [clearRetry, scheduleReconnect])
+  }, [clearRetry, scheduleReconnect, settings.monitorEnabledByDefault])
 
   /** 新建会话并入指定窗格（不发起连接，连接由 TerminalView 挂载时触发） */
   const createSession = useCallback((host: HostConfig, side: PaneSide, replaceTabId?: string) => {
@@ -320,7 +329,22 @@ export default function App() {
           if (side === 'right') setActiveRight(sessionId)
           else setActiveLeft(sessionId)
           setFocusSide(side)
-          setSftpOpen((prev) => ({ ...prev, [sessionId]: !prev[sessionId] }))
+          setSftpOpen((prev) => {
+            const next = !prev[sessionId]
+            if (next) setMonitorOpen((m) => ({ ...m, [sessionId]: false }))
+            return { ...prev, [sessionId]: next }
+          })
+          break
+        case 'toggleMonitor':
+          if (session.status !== 'connected') break
+          if (side === 'right') setActiveRight(sessionId)
+          else setActiveLeft(sessionId)
+          setFocusSide(side)
+          setMonitorOpen((prev) => {
+            const next = !prev[sessionId]
+            if (next) setSftpOpen((s) => ({ ...s, [sessionId]: false }))
+            return { ...prev, [sessionId]: next }
+          })
           break
         case 'close':
           closeSession(side, sessionId)
@@ -571,7 +595,8 @@ export default function App() {
             title: session.host.label || `${session.host.username}@${session.host.host}`,
             detail: `${session.host.username}@${session.host.host}:${session.host.port} · ${t(`infoBar.${session.status}`)}`,
             status: session.status,
-            sftpOpen: !!sftpOpen[session.sessionId]
+            sftpOpen: !!sftpOpen[session.sessionId],
+            monitorOpen: !!monitorOpen[session.sessionId]
           })
         } else if (blankTabs.has(id)) {
           tabs.push({ kind: 'blank', sessionId: id, title: t('tabs.newTab') })
@@ -579,7 +604,7 @@ export default function App() {
       }
       return tabs
     },
-    [blankTabs, sessionsById, sftpOpen, t]
+    [blankTabs, sessionsById, sftpOpen, monitorOpen, t]
   )
   const leftTabData = useMemo(() => toTabs(leftTabs), [toTabs, leftTabs])
   const rightTabData = useMemo(() => (rightTabs ? toTabs(rightTabs) : null), [toTabs, rightTabs])
@@ -618,7 +643,19 @@ export default function App() {
             status={active.status}
             sftpOpen={!!sftpOpen[active.sessionId]}
             onToggleSftp={() =>
-              setSftpOpen((prev) => ({ ...prev, [active.sessionId]: !prev[active.sessionId] }))
+              setSftpOpen((prev) => {
+                const next = !prev[active.sessionId]
+                if (next) setMonitorOpen((m) => ({ ...m, [active.sessionId]: false }))
+                return { ...prev, [active.sessionId]: next }
+              })
+            }
+            monitorOpen={!!monitorOpen[active.sessionId]}
+            onToggleMonitor={() =>
+              setMonitorOpen((prev) => {
+                const next = !prev[active.sessionId]
+                if (next) setSftpOpen((s) => ({ ...s, [active.sessionId]: false }))
+                return { ...prev, [active.sessionId]: next }
+              })
             }
             onHide={() => setSettings({ showSessionInfoBar: false })}
           />
@@ -669,6 +706,12 @@ export default function App() {
           <SftpPanel
             sessionId={active.sessionId}
             onClose={() => setSftpOpen((prev) => ({ ...prev, [active.sessionId]: false }))}
+          />
+        )}
+        {active && monitorOpen[active.sessionId] && !sftpOpen[active.sessionId] && active.status === 'connected' && (
+          <MonitorPanel
+            sessionId={active.sessionId}
+            onClose={() => setMonitorOpen((prev) => ({ ...prev, [active.sessionId]: false }))}
           />
         )}
       </div>
