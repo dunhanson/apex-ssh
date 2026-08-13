@@ -16,6 +16,7 @@ import { GroupManagerDialog } from '@/components/GroupManagerDialog'
 import { Toaster } from '@/components/ui/sonner'
 import { getTerminal } from '@/lib/terminals'
 import { setSettings, useSettings } from '@/lib/settings'
+import { useBackgroundMonitor } from '@/lib/useBackgroundMonitor'
 import { cn } from '@/lib/utils'
 
 /** 会话：标签数据 + 完整主机配置（重连 / 复制会话要用） */
@@ -52,6 +53,23 @@ export default function App() {
   // 每会话独立的 SFTP / 监控开关状态（面板本体属 M3）
   const [sftpOpen, setSftpOpen] = useState<Record<string, boolean>>({})
   const [monitorOpen, setMonitorOpen] = useState<Record<string, boolean>>({})
+
+  // 后台监控：采集状态提升到 App，按 session 维护
+  const connectedSessionIds = useMemo(
+    () => sessions.filter((s) => s.status === 'connected').map((s) => s.sessionId),
+    [sessions]
+  )
+  const execFor = useCallback(
+    (sessionId: string) => (command: string) => window.api.ssh.exec(sessionId, command),
+    []
+  )
+  const { states: monitorStates, openMonitor, closeMonitor, togglePause, setIface } = useBackgroundMonitor(
+    execFor,
+    connectedSessionIds,
+    settings.monitorBackgroundEnabled,
+    settings.monitorRefreshInterval
+  )
+
   const [dialogOpen, setDialogOpen] = useState(false)
   const [connectionDialogFromHub, setConnectionDialogFromHub] = useState(false)
   const [editingHost, setEditingHost] = useState<HostConfig | null>(null)
@@ -146,6 +164,9 @@ export default function App() {
         wasConnectedRef.current.add(ev.sessionId)
         manualRef.current.delete(ev.sessionId)
         clearRetry(ev.sessionId)
+        if (settings.monitorEnabledByDefault || settings.monitorBackgroundEnabled) {
+          openMonitor(ev.sessionId)
+        }
         if (settings.monitorEnabledByDefault) {
           setMonitorOpen((prev) => {
             if (prev[ev.sessionId]) return prev
@@ -175,7 +196,7 @@ export default function App() {
         }
       }
     })
-  }, [clearRetry, scheduleReconnect, settings.monitorEnabledByDefault])
+  }, [clearRetry, scheduleReconnect, settings.monitorEnabledByDefault, settings.monitorBackgroundEnabled, openMonitor])
 
   /** 新建会话并入指定窗格（不发起连接，连接由 TerminalView 挂载时触发） */
   const createSession = useCallback((host: HostConfig, side: PaneSide, replaceTabId?: string) => {
@@ -342,7 +363,12 @@ export default function App() {
           setFocusSide(side)
           setMonitorOpen((prev) => {
             const next = !prev[sessionId]
-            if (next) setSftpOpen((s) => ({ ...s, [sessionId]: false }))
+            if (next) {
+              setSftpOpen((s) => ({ ...s, [sessionId]: false }))
+              openMonitor(sessionId)
+            } else {
+              closeMonitor(sessionId)
+            }
             return { ...prev, [sessionId]: next }
           })
           break
@@ -653,7 +679,12 @@ export default function App() {
             onToggleMonitor={() =>
               setMonitorOpen((prev) => {
                 const next = !prev[active.sessionId]
-                if (next) setSftpOpen((s) => ({ ...s, [active.sessionId]: false }))
+                if (next) {
+                  setSftpOpen((s) => ({ ...s, [active.sessionId]: false }))
+                  openMonitor(active.sessionId)
+                } else {
+                  closeMonitor(active.sessionId)
+                }
                 return { ...prev, [active.sessionId]: next }
               })
             }
@@ -711,7 +742,17 @@ export default function App() {
         {active && monitorOpen[active.sessionId] && !sftpOpen[active.sessionId] && active.status === 'connected' && (
           <MonitorPanel
             sessionId={active.sessionId}
+            state={monitorStates[active.sessionId] ?? {
+              samples: [],
+              hostInfo: null,
+              selectedIface: '',
+              loading: true,
+              error: null,
+              paused: false
+            }}
             onClose={() => setMonitorOpen((prev) => ({ ...prev, [active.sessionId]: false }))}
+            onTogglePause={() => togglePause(active.sessionId)}
+            onChangeIface={(iface) => setIface(active.sessionId, iface)}
           />
         )}
       </div>

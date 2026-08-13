@@ -1,28 +1,17 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Activity, Pause, Play, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettings, setSettings } from '@/lib/settings'
-import {
-  MONITOR_COLLECT_CMD,
-  HOST_INFO_CMD,
-  parseCollect,
-  parseHostInfo,
-  computeSample,
-  fmtBytes,
-  fmtBytesPerSec,
-  fmtNetSpeed,
-  fmtPercent,
-  getMaxPoints,
-  readNetSpeed,
-  type HostInfo,
-  type MonitorSample,
-  type RawSample
-} from '@/lib/monitor'
+import { fmtBytes, fmtBytesPerSec, fmtNetSpeed, fmtPercent, type HostInfo, type MonitorSample } from '@/lib/monitor'
+import type { MonitorSessionState } from '@/lib/useBackgroundMonitor'
 
 interface MonitorPanelProps {
   sessionId: string
+  state: MonitorSessionState
   onClose: () => void
+  onTogglePause: () => void
+  onChangeIface: (iface: string) => void
 }
 
 const COLORS = {
@@ -34,99 +23,16 @@ const COLORS = {
   grid: 'rgba(255,255,255,0.06)'
 }
 
-export function MonitorPanel({ sessionId, onClose }: MonitorPanelProps) {
+export function MonitorPanel({ sessionId, state, onClose, onTogglePause, onChangeIface }: MonitorPanelProps) {
   const { t } = useTranslation()
   const settings = useSettings()
   const [height, setHeight] = useState(240)
-  const [paused, setPaused] = useState(false)
-  const [samples, setSamples] = useState<MonitorSample[]>([])
-  const [hostInfo, setHostInfo] = useState<HostInfo | null>(null)
-  const [selectedIface, setSelectedIface] = useState<string>('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [hoverIndex, setHoverIndex] = useState(-1)
 
-  const rawPrevRef = useRef<RawSample | undefined>(undefined)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const mountedRef = useRef(true)
   const intervalSec = Math.max(1, Math.min(60, settings.monitorRefreshInterval))
-
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
-  }, [])
-
-  const exec = useCallback(
-    (command: string) => window.api.ssh.exec(sessionId, command),
-    [sessionId]
-  )
-
-  const fetchHostInfo = useCallback(async () => {
-    try {
-      const res = await exec(HOST_INFO_CMD)
-      if (!mountedRef.current) return
-      const info = await parseHostInfo(exec, res)
-      if (!mountedRef.current) return
-      setHostInfo(info)
-      setSelectedIface(info.netIface)
-      setLoading(false)
-      if (info.os.toLowerCase() === 'linux') {
-        // 立即采集一次，避免首屏空白
-        await collectOnce(info.netIface)
-      }
-    } catch (e) {
-      if (!mountedRef.current) return
-      setError(String(e))
-      setLoading(false)
-    }
-  }, [exec])
-
-  const collectOnce = useCallback(async (iface: string = selectedIface) => {
-    if (!iface) return
-    try {
-      const res = await exec(MONITOR_COLLECT_CMD(iface))
-      if (!mountedRef.current) return
-      const raw = { ...parseCollect(res), timestamp: Date.now() }
-      const sample = computeSample(rawPrevRef.current, raw as RawSample, intervalSec)
-      rawPrevRef.current = raw as RawSample
-      setSamples((prev) => {
-        const next = [...prev, sample]
-        const maxPoints = getMaxPoints(intervalSec)
-        while (next.length > maxPoints) next.shift()
-        return next
-      })
-    } catch (e) {
-      // 单次采样失败不阻断轮询，可在后续加入连续失败暂停逻辑
-      console.error('monitor collect failed', e)
-    }
-  }, [exec, intervalSec, selectedIface])
-
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    setSamples([])
-    setSelectedIface('')
-    rawPrevRef.current = undefined
-    fetchHostInfo()
-  }, [fetchHostInfo])
-
-  useEffect(() => {
-    if (paused || !hostInfo || hostInfo.os.toLowerCase() !== 'linux') return
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    intervalRef.current = setInterval(collectOnce, intervalSec * 1000)
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
-  }, [paused, hostInfo, intervalSec, collectOnce])
+  const { samples, hostInfo, selectedIface, loading, error, paused } = state
+  const isLinux = hostInfo?.os.toLowerCase() === 'linux'
+  const last = samples[samples.length - 1]
 
   const startHeightDrag = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -143,29 +49,6 @@ export function MonitorPanel({ sessionId, onClose }: MonitorPanelProps) {
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
   }
-
-  const handleIfaceChange = async (iface: string) => {
-    setSelectedIface(iface)
-    rawPrevRef.current = undefined
-    setSamples([])
-    const speed = await readNetSpeed(exec, iface)
-    setHostInfo((prev) => (prev ? { ...prev, netIface: iface, netSpeed: speed } : prev))
-    collectOnce(iface)
-  }
-
-  const togglePause = () => {
-    setPaused((p) => {
-      const next = !p
-      if (!next && hostInfo?.os.toLowerCase() === 'linux') {
-        // 继续时立即采集一次
-        setTimeout(() => collectOnce(selectedIface), 0)
-      }
-      return next
-    })
-  }
-
-  const isLinux = hostInfo?.os.toLowerCase() === 'linux'
-  const last = samples[samples.length - 1]
 
   return (
     <div className="shrink-0 flex flex-col border-t border-white/[0.06] bg-panel" style={{ height }}>
@@ -197,7 +80,7 @@ export function MonitorPanel({ sessionId, onClose }: MonitorPanelProps) {
         <button
           className="icon-btn flex items-center gap-1 px-1.5"
           title={paused ? t('monitor.resume') : t('monitor.pause')}
-          onClick={togglePause}
+          onClick={onTogglePause}
         >
           {paused ? <Play className="size-3" /> : <Pause className="size-3" />}
           <span className="font-mono text-[10px]">{paused ? t('monitor.resume') : t('monitor.pause')}</span>
@@ -282,7 +165,7 @@ export function MonitorPanel({ sessionId, onClose }: MonitorPanelProps) {
                 hostInfo={hostInfo}
                 selectedIface={selectedIface}
                 ifaces={hostInfo?.netIfaces ?? []}
-                onChange={handleIfaceChange}
+                onChange={onChangeIface}
                 hoverIndex={hoverIndex}
                 onHover={setHoverIndex}
                 t={t}
@@ -291,43 +174,6 @@ export function MonitorPanel({ sessionId, onClose }: MonitorPanelProps) {
           </>
         )}
       </div>
-    </div>
-  )
-}
-
-function HostInfoBar({ info }: { info: HostInfo }) {
-  return (
-    <div className="mb-3 flex flex-wrap items-center gap-x-7 gap-y-2 px-3 py-2 rounded-sm border border-white/[0.06] bg-[#0a0a0a]">
-      <InfoItem label={info.memoryTotal ? fmtBytes(info.memoryTotal) : ''} values={[]} prefix="内存" />
-      <InfoItem label={info.diskTotal ? fmtBytes(info.diskTotal) : ''} values={[]} prefix="磁盘" />
-      <InfoItem
-        label={info.netIface}
-        values={info.netSpeed ? [fmtNetSpeed(info.netSpeed * 1000000)] : []}
-        prefix="网卡"
-      />
-    </div>
-  )
-}
-
-function InfoItem({
-  prefix,
-  label,
-  values
-}: {
-  prefix?: string
-  label: string
-  values: string[]
-}) {
-  const items = [label, ...values].filter(Boolean)
-  if (!items.length) return null
-  return (
-    <div className="flex items-center gap-2 font-mono text-[11px] leading-4 text-dim">
-      {prefix && <span className="text-ghost">{prefix}</span>}
-      {items.map((v, i) => (
-        <span key={i} className="text-body">
-          {v}
-        </span>
-      ))}
     </div>
   )
 }
@@ -601,9 +447,7 @@ function MetricChart({
               stroke={COLORS.grid}
               strokeWidth={1}
             />
-            {areaPath && (
-              <path d={areaPath} fill={color} opacity={0.12} />
-            )}
+            {areaPath && <path d={areaPath} fill={color} opacity={0.12} />}
             <path
               d={singlePath}
               fill="none"
@@ -629,48 +473,20 @@ function MetricChart({
                   y1={0}
                   x2={hoverPos.x}
                   y2={height}
-                  stroke="rgba(255,255,255,0.25)"
+                  stroke="rgba(255,255,255,0.15)"
                   strokeWidth={1}
-                  strokeDasharray="2 2"
+                  strokeDasharray="3 3"
                 />
-                <circle
-                  cx={hoverPos.x}
-                  cy={hoverPos.y}
-                  r={3}
-                  fill={color}
-                  stroke="#080808"
-                  strokeWidth={2}
-                />
+                <circle cx={hoverPos.x} cy={hoverPos.y} r={3} fill={color} />
                 {hoverPos.y2 !== null && secondColor && (
-                  <circle
-                    cx={hoverPos.x}
-                    cy={hoverPos.y2!}
-                    r={3}
-                    fill={secondColor}
-                    stroke="#080808"
-                    strokeWidth={2}
-                  />
+                  <circle cx={hoverPos.x} cy={hoverPos.y2} r={3} fill={secondColor} />
                 )}
               </>
             )}
           </svg>
           {hoverIndex >= 0 && hoverIndex < samples.length && (
-            <div
-              className="absolute z-20 pointer-events-none bg-raised border border-white/[0.12] rounded-sm px-2 py-1.5 text-body font-mono text-[11px] leading-4 whitespace-nowrap shadow-lg"
-              style={{
-                left: Math.min(
-                  (hoverPos?.x ?? 0) + 10,
-                  Math.max(0, width - 140)
-                ),
-                top: 4
-              }}
-            >
-              <div className="text-faint">
-                {new Date(samples[hoverIndex].timestamp).toLocaleTimeString('zh-CN', {
-                  hour12: false
-                })}
-              </div>
-              <div>{tooltip(samples[hoverIndex])}</div>
+            <div className="absolute top-0 left-0 z-10 font-mono text-[10px] text-body bg-[rgba(8,8,8,0.9)] px-1.5 py-0.5 rounded-sm border border-white/[0.06] pointer-events-none">
+              {tooltip(samples[hoverIndex])}
             </div>
           )}
         </>

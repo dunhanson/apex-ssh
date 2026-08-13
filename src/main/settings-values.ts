@@ -20,7 +20,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   backupIncludeCredentials: true,
   backupPasswordSource: 'custom',
   monitorRefreshInterval: 5,
-  monitorEnabledByDefault: false
+  monitorEnabledByDefault: false,
+  monitorBackgroundEnabled: false
 }
 
 export function normalizeSettings(candidate: Partial<AppSettings>): AppSettings {
@@ -76,6 +77,10 @@ export function normalizeSettings(candidate: Partial<AppSettings>): AppSettings 
     typeof candidate.monitorEnabledByDefault === 'boolean'
       ? candidate.monitorEnabledByDefault
       : DEFAULT_SETTINGS.monitorEnabledByDefault
+  const monitorBackgroundEnabled =
+    typeof candidate.monitorBackgroundEnabled === 'boolean'
+      ? candidate.monitorBackgroundEnabled
+      : DEFAULT_SETTINGS.monitorBackgroundEnabled
 
   return {
     fontSize: Math.min(24, Math.max(12.5, fontSize)),
@@ -125,6 +130,7 @@ export function normalizeSettings(candidate: Partial<AppSettings>): AppSettings 
         ? candidate.backupPasswordSource
         : DEFAULT_SETTINGS.backupPasswordSource,
     monitorRefreshInterval: Math.min(60, Math.max(1, Math.round(monitorRefreshInterval))),
-    monitorEnabledByDefault
+    monitorEnabledByDefault,
+    monitorBackgroundEnabled
   }
 }

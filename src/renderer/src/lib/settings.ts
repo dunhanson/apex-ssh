@@ -25,7 +25,8 @@ let current: AppSettings = {
   backupIncludeCredentials: true,
   backupPasswordSource: 'custom',
   monitorRefreshInterval: 5,
-  monitorEnabledByDefault: false
+  monitorEnabledByDefault: false,
+  monitorBackgroundEnabled: false
 }
 const listeners = new Set<() => void>()
 

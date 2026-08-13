@@ -237,6 +237,8 @@ export interface AppSettings {
   monitorRefreshInterval: number
   /** 新会话是否默认开启监控面板 */
   monitorEnabledByDefault: boolean
+  /** 连接成功后是否在后台自动运行监控采集 */
+  monitorBackgroundEnabled: boolean
 }
 
 /**

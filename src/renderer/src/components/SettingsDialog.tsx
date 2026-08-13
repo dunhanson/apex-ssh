@@ -869,6 +869,24 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     />
                   </div>
                 </div>
+                <div>
+                  <Label>{t('settings.monitorBackgroundEnabled')}</Label>
+                  <div className="settings-control-surface h-9 flex items-center justify-between gap-4 px-2.5 rounded-sm border">
+                    <span
+                      className={cn(
+                        'font-mono text-[12px]',
+                        settings.monitorBackgroundEnabled ? 'text-body' : 'text-faint'
+                      )}
+                    >
+                      {settings.monitorBackgroundEnabled ? t('common.enabled') : t('common.disabled')}
+                    </span>
+                    <SettingToggle
+                      checked={settings.monitorBackgroundEnabled}
+                      label={t('settings.monitorBackgroundEnabled')}
+                      onChange={(monitorBackgroundEnabled) => patch({ monitorBackgroundEnabled })}
+                    />
+                  </div>
+                </div>
               </div>
               <p className="mt-4 max-w-[560px] text-[11px] leading-4 text-faint font-mono">
                 {t('settings.monitorNote')}
