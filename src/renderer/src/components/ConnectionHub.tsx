@@ -330,7 +330,12 @@ export function ConnectionHub({
           <span className="ml-auto hidden min-[620px]:block font-sans text-[11px] leading-4 text-ghost">
             {t('connections.hint')}
           </span>
-          <Button variant="solid" size="sm" disabled={!selectedHost} onClick={connectSelected}>
+          <Button
+            variant="solid"
+            className="connection-hub-connect"
+            disabled={!selectedHost}
+            onClick={connectSelected}
+          >
             <LogIn data-icon="inline-start" />
             {t('connections.connect')}
           </Button>
