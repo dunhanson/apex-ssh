@@ -83,6 +83,14 @@ export interface TermSize {
   rows: number
 }
 
+/** ssh:exec 一次性命令执行结果 */
+export interface SshExecResult {
+  code: number | null
+  signal: string | null
+  stdout: string
+  stderr: string
+}
+
 /** 最近使用记录（按连接时间倒序，最多保留 50 条） */
 export interface RecentEntry {
   hostId: string
@@ -225,6 +233,12 @@ export interface AppSettings {
   backupIncludeCredentials: boolean
   /** 加密备份默认使用的密码方式；只保存方式，不保存密码内容 */
   backupPasswordSource: 'custom' | 'random'
+  /** 主机资源监控刷新频率（秒） */
+  monitorRefreshInterval: number
+  /** 新会话是否默认开启监控面板 */
+  monitorEnabledByDefault: boolean
+  /** 连接成功后是否在后台自动运行监控采集 */
+  monitorBackgroundEnabled: boolean
 }
 
 /**
@@ -351,6 +365,7 @@ export const IPC = {
   SshWrite: 'ssh:write',
   SshResize: 'ssh:resize',
   SshDisconnect: 'ssh:disconnect',
+  SshExec: 'ssh:exec',
   SshData: 'ssh:data',
   SshStatus: 'ssh:status',
   WindowMinimize: 'window:minimize',
@@ -466,6 +481,7 @@ export interface RendererApi {
     write: (sessionId: string, data: string) => void
     resize: (sessionId: string, cols: number, rows: number) => void
     disconnect: (sessionId: string) => void
+    exec: (sessionId: string, command: string) => Promise<SshExecResult>
     /** 订阅终端输出，返回取消订阅函数 */
     onData: (cb: (ev: SessionDataEvent) => void) => () => void
     /** 订阅会话状态变更，返回取消订阅函数 */

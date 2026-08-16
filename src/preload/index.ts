@@ -14,11 +14,12 @@ import type {
   SessionDataEvent,
   SessionStatusEvent,
   SftpListResult,
-  UploadItem,
   SshConfigEntry,
+  SshExecResult,
   TermSize,
   TransferProgress,
-  UpdateStatus
+  UpdateStatus,
+  UploadItem
 } from '@shared/types'
 import { IPC } from '@shared/types'
 
@@ -65,6 +66,8 @@ const api: RendererApi = {
     resize: (sessionId: string, cols: number, rows: number) =>
       ipcRenderer.send(IPC.SshResize, sessionId, cols, rows),
     disconnect: (sessionId: string) => ipcRenderer.send(IPC.SshDisconnect, sessionId),
+    exec: (sessionId: string, command: string): Promise<SshExecResult> =>
+      ipcRenderer.invoke(IPC.SshExec, sessionId, command),
     onData: (cb) => {
       const listener = (_e: IpcRendererEvent, ev: SessionDataEvent) =>
         // 复制为全新的 Uint8Array，避免 IPC 反序列化的底层 Buffer 视图在 xterm 解析中出现兼容问题

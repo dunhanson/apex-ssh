@@ -2,7 +2,7 @@ import { Client, ClientChannel, ConnectConfig } from 'ssh2'
 import { randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import type { WebContents } from 'electron'
-import type { HostConfig, SessionStatus, TermSize } from '@shared/types'
+import type { HostConfig, SessionStatus, SshExecResult, TermSize } from '@shared/types'
 import { IPC } from '@shared/types'
 import { addRecent } from './recents'
 import { resolveKeyPassphrase, resolveKeyPath, resolvePassword } from './credentials'
@@ -276,4 +276,62 @@ export function getClient(sessionId: string): Client | null {
 export function retarget(sessionId: string, wc: WebContents): void {
   const session = sessions.get(sessionId)
   if (session) session.wc = wc
+}
+
+/**
+ * 在已连接会话上执行一次性命令并返回 stdout/stderr/退出码。
+ * 复用现有 ssh2 Client，不新建连接；10 秒超时后自动关闭通道并拒绝。
+ */
+export function exec(sessionId: string, command: string): Promise<SshExecResult> {
+  const client = getClient(sessionId)
+  if (!client) return Promise.reject(new Error('会话不存在或未连接'))
+
+  return new Promise((resolve, reject) => {
+    let settled = false
+    let timer: NodeJS.Timeout | null = null
+    const stdoutChunks: Buffer[] = []
+    const stderrChunks: Buffer[] = []
+
+    const finish = (result: SshExecResult): void => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      resolve(result)
+    }
+
+    const fail = (error: Error): void => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      reject(error)
+    }
+
+    client.exec(command, (err, stream) => {
+      if (err) {
+        fail(err)
+        return
+      }
+
+      timer = setTimeout(() => {
+        fail(new Error('命令执行超时'))
+        try {
+          stream.close()
+        } catch {
+          /* 通道可能已关闭 */
+        }
+      }, 10000)
+
+      stream.on('data', (data: Buffer) => stdoutChunks.push(data))
+      stream.stderr.on('data', (data: Buffer) => stderrChunks.push(data))
+      stream.on('close', (code: number | null, signal: string | null) => {
+        finish({
+          code,
+          signal,
+          stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+          stderr: Buffer.concat(stderrChunks).toString('utf8')
+        })
+      })
+      stream.on('error', (streamErr: Error) => fail(streamErr))
+    })
+  })
 }
