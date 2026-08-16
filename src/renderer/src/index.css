@@ -280,10 +280,9 @@ button:disabled {
 }
 .settings-workspace-main {
   min-width: 0;
-  overflow-y: auto;
-  scrollbar-width: none;
+  min-height: 0;
+  overflow: hidden;
 }
-.settings-workspace-main::-webkit-scrollbar,
 .settings-navigation::-webkit-scrollbar {
   display: none;
 }
@@ -300,6 +299,26 @@ button:disabled {
   width: min(680px, 100%);
   padding: 28px 32px 48px;
   box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-faint) transparent;
+}
+.settings-workspace-content::-webkit-scrollbar {
+  width: 10px;
+}
+.settings-workspace-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.settings-workspace-content::-webkit-scrollbar-thumb {
+  background: var(--color-faint);
+  border: 3px solid transparent;
+  border-radius: var(--radius-md);
+  background-clip: padding-box;
+}
+.settings-workspace-content::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-dim);
 }
 .settings-page-title {
   color: var(--color-settings-page);
