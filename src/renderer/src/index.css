@@ -47,15 +47,6 @@
   --color-accent: #202023;
   --color-ring: rgba(250, 250, 250, 0.28);
 
-  /* 数据可视化（T-005 主机资源监控），按 dataviz skill 默认深色分类调色板校验通过 */
-  --color-viz-cpu: #3987e5;
-  --color-viz-memory: #199e70;
-  --color-viz-disk: #c98500;
-  --color-viz-rx: #d95926;
-  --color-viz-tx: #d55181;
-  --color-viz-surface: #080808;
-  --color-viz-grid: rgba(255, 255, 255, 0.06);
-
   --font-sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-mono: 'JetBrains Mono', Consolas, monospace;
 
@@ -280,9 +271,10 @@ button:disabled {
 }
 .settings-workspace-main {
   min-width: 0;
-  min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
 }
+.settings-workspace-main::-webkit-scrollbar,
 .settings-navigation::-webkit-scrollbar {
   display: none;
 }
@@ -299,26 +291,6 @@ button:disabled {
   width: min(680px, 100%);
   padding: 28px 32px 48px;
   box-sizing: border-box;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-faint) transparent;
-}
-.settings-workspace-content::-webkit-scrollbar {
-  width: 10px;
-}
-.settings-workspace-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-.settings-workspace-content::-webkit-scrollbar-thumb {
-  background: var(--color-faint);
-  border: 3px solid transparent;
-  border-radius: var(--radius-md);
-  background-clip: padding-box;
-}
-.settings-workspace-content::-webkit-scrollbar-thumb:hover {
-  background-color: var(--color-dim);
 }
 .settings-page-title {
   color: var(--color-settings-page);
@@ -440,77 +412,36 @@ button:disabled {
   grid-column: 1 / -1;
 }
 .settings-backup-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.settings-backup-actions[data-count='1'] {
   display: flex;
-  width: auto;
   justify-content: flex-start;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+}
+.settings-backup-actions[data-count='1'] > button {
+  width: calc((100% - 12px) / 2);
 }
 .settings-update-actions {
   display: flex;
-  width: auto;
   justify-content: flex-start;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
 }
-.settings-workspace-content .settings-backup-actions > [data-slot='button'],
-.settings-workspace-content .settings-update-actions > [data-slot='button'] {
-  width: auto;
-  min-width: 120px;
-  height: 32px;
-  min-height: 32px;
-  padding: 0 12px;
-  gap: 6px;
-  font-size: 12px;
-  line-height: 16px;
+.settings-update-actions > button {
+  width: calc((100% - 8px) / 2);
 }
-.settings-workspace-content .settings-backup-actions > [data-slot='button'] svg,
-.settings-workspace-content .settings-update-actions > [data-slot='button'] svg {
-  width: 14px;
-  height: 14px;
+.settings-update-actions[data-count='2'] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.connection-dialog-actions {
-  justify-content: flex-end;
-  gap: 8px;
+.settings-update-actions[data-count='2'] > button {
+  width: 100%;
 }
-.connection-dialog-actions > [data-slot='button'] {
-  width: auto;
-  min-width: 120px;
-  height: 32px;
-  min-height: 32px;
-  padding: 0 12px;
-  font-size: 12px;
-  line-height: 16px;
-}
-.group-manager-create {
-  min-width: 120px;
-  height: 32px;
-  min-height: 32px;
-  padding: 0 12px;
-  gap: 6px;
-  font-size: 12px;
-  line-height: 16px;
-}
-.connection-hub-connect {
-  min-width: 120px;
-  height: 32px;
-  min-height: 32px;
-  padding: 0 12px;
-  gap: 6px;
-  font-size: 12px;
-  line-height: 16px;
-}
-@container (max-width: 300px) {
-  .settings-backup-actions,
-  .settings-update-actions {
-    display: grid;
+@container (max-width: 420px) {
+  .settings-backup-actions[data-count='1'] > button,
+  .settings-update-actions > button {
     width: 100%;
   }
-  .settings-workspace-content .settings-backup-actions > [data-slot='button'],
-  .settings-workspace-content .settings-update-actions > [data-slot='button'] {
-    width: 100%;
+  .settings-update-actions[data-count='2'] {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @container (max-width: 720px) {
