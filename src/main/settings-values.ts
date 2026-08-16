@@ -18,10 +18,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   maxConcurrentTransfers: 2,
   notifyTransferComplete: true,
   backupIncludeCredentials: true,
-  backupPasswordSource: 'custom',
-  monitorRefreshInterval: 5,
-  monitorEnabledByDefault: false,
-  monitorBackgroundEnabled: false
+  backupPasswordSource: 'custom'
 }
 
 export function normalizeSettings(candidate: Partial<AppSettings>): AppSettings {
@@ -68,19 +65,6 @@ export function normalizeSettings(candidate: Partial<AppSettings>): AppSettings 
     candidate.sftpPanelMode === 'panel' || candidate.sftpPanelMode === 'split'
       ? candidate.sftpPanelMode
       : DEFAULT_SETTINGS.sftpPanelMode
-  const monitorRefreshInterval =
-    typeof candidate.monitorRefreshInterval === 'number' &&
-    Number.isFinite(candidate.monitorRefreshInterval)
-      ? candidate.monitorRefreshInterval
-      : DEFAULT_SETTINGS.monitorRefreshInterval
-  const monitorEnabledByDefault =
-    typeof candidate.monitorEnabledByDefault === 'boolean'
-      ? candidate.monitorEnabledByDefault
-      : DEFAULT_SETTINGS.monitorEnabledByDefault
-  const monitorBackgroundEnabled =
-    typeof candidate.monitorBackgroundEnabled === 'boolean'
-      ? candidate.monitorBackgroundEnabled
-      : DEFAULT_SETTINGS.monitorBackgroundEnabled
 
   return {
     fontSize: Math.min(24, Math.max(12.5, fontSize)),
@@ -128,9 +112,6 @@ export function normalizeSettings(candidate: Partial<AppSettings>): AppSettings 
     backupPasswordSource:
       candidate.backupPasswordSource === 'custom' || candidate.backupPasswordSource === 'random'
         ? candidate.backupPasswordSource
-        : DEFAULT_SETTINGS.backupPasswordSource,
-    monitorRefreshInterval: Math.min(60, Math.max(1, Math.round(monitorRefreshInterval))),
-    monitorEnabledByDefault,
-    monitorBackgroundEnabled
+        : DEFAULT_SETTINGS.backupPasswordSource
   }
 }

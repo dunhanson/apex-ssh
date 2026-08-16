@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  Activity,
   CloudUpload,
   Copy,
   DatabaseBackup,
@@ -201,7 +200,7 @@ function SettingsSection({
   )
 }
 
-type SettingsCategory = 'terminal' | 'interface' | 'monitor' | 'transfer' | 'backup' | 'sync' | 'about'
+type SettingsCategory = 'terminal' | 'interface' | 'transfer' | 'backup' | 'sync' | 'about'
 
 interface SettingsCategoryItem {
   id: SettingsCategory
@@ -306,12 +305,6 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
       label: t('settings.interface'),
       description: t('settings.interfaceDescription'),
       icon: MonitorCog
-    },
-    {
-      id: 'monitor',
-      label: t('settings.monitor'),
-      description: t('settings.monitorDescription'),
-      icon: Activity
     },
     {
       id: 'transfer',
@@ -833,64 +826,6 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </div>
                 </div>
               </div>
-            </SettingsSection>
-          </TabsContent>
-
-          <TabsContent value="monitor">
-            <SettingsSection title={t('settings.monitor')} showTitle={false}>
-              <div className="settings-form-grid">
-                <div>
-                  <Label htmlFor="settings-monitor-refresh">{t('settings.monitorRefreshInterval')}</Label>
-                  <NumericSetting
-                    id="settings-monitor-refresh"
-                    value={settings.monitorRefreshInterval}
-                    min={1}
-                    max={60}
-                    step={1}
-                    integer
-                    onChange={(monitorRefreshInterval) => patch({ monitorRefreshInterval })}
-                  />
-                </div>
-                <div>
-                  <Label>{t('settings.monitorEnabledByDefault')}</Label>
-                  <div className="settings-control-surface h-9 flex items-center justify-between gap-4 px-2.5 rounded-sm border">
-                    <span
-                      className={cn(
-                        'font-mono text-[12px]',
-                        settings.monitorEnabledByDefault ? 'text-body' : 'text-faint'
-                      )}
-                    >
-                      {settings.monitorEnabledByDefault ? t('common.enabled') : t('common.disabled')}
-                    </span>
-                    <SettingToggle
-                      checked={settings.monitorEnabledByDefault}
-                      label={t('settings.monitorEnabledByDefault')}
-                      onChange={(monitorEnabledByDefault) => patch({ monitorEnabledByDefault })}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label>{t('settings.monitorBackgroundEnabled')}</Label>
-                  <div className="settings-control-surface h-9 flex items-center justify-between gap-4 px-2.5 rounded-sm border">
-                    <span
-                      className={cn(
-                        'font-mono text-[12px]',
-                        settings.monitorBackgroundEnabled ? 'text-body' : 'text-faint'
-                      )}
-                    >
-                      {settings.monitorBackgroundEnabled ? t('common.enabled') : t('common.disabled')}
-                    </span>
-                    <SettingToggle
-                      checked={settings.monitorBackgroundEnabled}
-                      label={t('settings.monitorBackgroundEnabled')}
-                      onChange={(monitorBackgroundEnabled) => patch({ monitorBackgroundEnabled })}
-                    />
-                  </div>
-                </div>
-              </div>
-              <p className="mt-4 max-w-[560px] text-[11px] leading-4 text-faint font-mono">
-                {t('settings.monitorNote')}
-              </p>
             </SettingsSection>
           </TabsContent>
 

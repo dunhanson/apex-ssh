@@ -113,12 +113,7 @@ export function GroupManagerDialog({
                   if (event.key === 'Enter') void create()
                 }}
               />
-              <Button
-                variant="solid"
-                className="group-manager-create"
-                disabled={!newName.trim()}
-                onClick={() => void create()}
-              >
+              <Button variant="solid" disabled={!newName.trim()} onClick={() => void create()}>
                 <Plus data-icon="inline-start" />
                 {t('groups.create')}
               </Button>
