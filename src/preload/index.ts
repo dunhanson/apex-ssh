@@ -198,6 +198,7 @@ const api: RendererApi = {
       ipcRenderer.invoke(IPC.CloudSyncTestConnection, input),
     generateKey: () => ipcRenderer.invoke(IPC.CloudSyncGenerateKey),
     copyGeneratedKey: () => ipcRenderer.invoke(IPC.CloudSyncCopyGeneratedKey),
+    discardGeneratedKey: () => ipcRenderer.invoke(IPC.CloudSyncDiscardGeneratedKey),
     setKey: (key: string) => ipcRenderer.invoke(IPC.CloudSyncSetKey, key),
     setEnabled: (enabled: boolean) => ipcRenderer.invoke(IPC.CloudSyncSetEnabled, enabled),
     syncNow: () => ipcRenderer.invoke(IPC.CloudSyncSyncNow),

@@ -771,6 +771,10 @@ export function registerCloudSyncIpc(): void {
     }
   })
 
+  ipcMain.handle(IPC.CloudSyncDiscardGeneratedKey, (): void => {
+    pendingGeneratedSyncKey = null
+  })
+
   ipcMain.handle(IPC.CloudSyncSetKey, async (_e, key: string): Promise<string | null> => {
     if (typeof key !== 'string' || key.trim().length < 12) return '同步密钥无效'
     const syncKey = key.trim()

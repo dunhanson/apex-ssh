@@ -428,6 +428,7 @@ export const IPC = {
   CloudSyncTestConnection: 'cloud-sync:test-connection',
   CloudSyncGenerateKey: 'cloud-sync:generate-key',
   CloudSyncCopyGeneratedKey: 'cloud-sync:copy-generated-key',
+  CloudSyncDiscardGeneratedKey: 'cloud-sync:discard-generated-key',
   CloudSyncSetKey: 'cloud-sync:set-key',
   CloudSyncSetEnabled: 'cloud-sync:set-enabled',
   CloudSyncSyncNow: 'cloud-sync:sync-now',
@@ -606,6 +607,8 @@ export interface RendererApi {
     generateKey: () => Promise<CloudSyncGenerateKeyResult>
     /** 用户主动复制刚生成的同步密钥；成功后同一密钥不可再次复制 */
     copyGeneratedKey: () => Promise<boolean>
+    /** 放弃未复制的同步密钥，清除主进程内存中的一次性暂存值 */
+    discardGeneratedKey: () => Promise<void>
     /** 填入其他设备已在使用的同步密钥；云端有数据时先校验可解密 */
     setKey: (key: string) => Promise<string | null>
     /** 启用 / 停用云同步；启用时立即执行一次同步 */
