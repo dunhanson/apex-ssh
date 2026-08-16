@@ -23,7 +23,10 @@ let current: AppSettings = {
   maxConcurrentTransfers: 2,
   notifyTransferComplete: true,
   backupIncludeCredentials: true,
-  backupPasswordSource: 'custom'
+  backupPasswordSource: 'custom',
+  monitorRefreshInterval: 5,
+  monitorEnabledByDefault: false,
+  monitorBackgroundEnabled: false
 }
 const listeners = new Set<() => void>()
 

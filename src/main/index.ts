@@ -354,6 +354,7 @@ function registerIpc(): void {
     ssh.resize(sessionId, cols, rows)
   )
   ipcMain.on(IPC.SshDisconnect, (_e, sessionId: string) => ssh.disconnect(sessionId))
+  ipcMain.handle(IPC.SshExec, (_e, sessionId: string, command: string) => ssh.exec(sessionId, command))
 
   ipcMain.on(IPC.WindowMinimize, (e) => BrowserWindow.fromWebContents(e.sender)?.minimize())
   ipcMain.on(IPC.WindowToggleMaximize, (e) => {
