@@ -443,7 +443,7 @@ const resources = {
         syncRegenerateConfirmTitle: '重置密钥',
         syncRegenerateConfirmDesc:
           '云端现有加密数据将被清空并用新密钥重写；新密钥生成后可由你主动复制一次，其他设备必须更新后才能继续同步。',
-        syncRegenerateConfirm: '重置密钥',
+        syncRegenerateConfirm: '重置',
         syncSection: '同步设置',
         syncEnable: '启用同步',
         syncEnabledHint: '启动时拉取，本地变更后自动推送，每 5 分钟检查远端更新',

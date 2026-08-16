@@ -41,6 +41,9 @@
   --color-ok: #4ade80;
   --color-warn: #f59e0b;
   --color-danger: #ef4444;
+  --color-settings-danger: #dc2626;
+  --color-settings-danger-hover: #b91c1c;
+  --color-settings-danger-foreground: #fafafa;
   --color-primary: #e5e5e5;
   --color-primary-hover: #d4d4d4;
   --color-primary-foreground: #111113;
@@ -261,11 +264,15 @@ button:disabled {
 .settings-pane {
   container-type: inline-size;
 }
+.settings-dialog {
+  container-type: inline-size;
+}
 .settings-workspace {
   display: grid;
   grid-template-columns: 184px minmax(0, 1fr);
   height: 100%;
   min-width: 0;
+  container-type: inline-size;
   background: var(--color-page);
 }
 .settings-navigation-title {
@@ -279,6 +286,8 @@ button:disabled {
   text-transform: uppercase;
 }
 .settings-workspace-main {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -291,11 +300,13 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 0 32px;
+  padding: 0 64px 0 32px;
   border-bottom: 1px solid var(--color-line);
   box-sizing: border-box;
 }
 .settings-workspace-content {
+  flex: 1 1 auto;
+  min-height: 0;
   width: min(680px, 100%);
   padding: 28px 32px 48px;
   box-sizing: border-box;
@@ -439,6 +450,51 @@ button:disabled {
 .settings-form-wide {
   grid-column: 1 / -1;
 }
+.settings-directory-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  align-items: center;
+  gap: 8px;
+  width: min(560px, 100%);
+}
+.settings-directory-row > [data-slot='button'] {
+  width: 120px;
+  min-width: 120px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.settings-directory-row > [data-slot='button'] svg {
+  width: 14px;
+  height: 14px;
+}
+.settings-sync-key-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(560px, 100%);
+}
+.settings-sync-key-row > [data-slot='input'] {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.settings-sync-key-row > [data-slot='button'] {
+  width: 120px;
+  min-width: 120px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 16px;
+}
+.settings-sync-key-row > [data-slot='button'] svg {
+  width: 14px;
+  height: 14px;
+}
 .settings-backup-actions {
   display: flex;
   width: auto;
@@ -470,6 +526,26 @@ button:disabled {
 .settings-workspace-content .settings-update-actions > [data-slot='button'] svg {
   width: 14px;
   height: 14px;
+}
+.settings-workspace-content .settings-backup-actions > [data-slot='button'][data-variant='danger'] {
+  border-color: transparent;
+  background: var(--color-settings-danger);
+  color: var(--color-settings-danger-foreground);
+}
+.settings-workspace-content .settings-backup-actions > [data-slot='button'][data-variant='danger']:not(:disabled):hover {
+  border-color: transparent;
+  background: var(--color-settings-danger-hover);
+  color: var(--color-settings-danger-foreground);
+}
+.settings-danger-solid {
+  border-color: transparent;
+  background: var(--color-settings-danger);
+  color: var(--color-settings-danger-foreground);
+}
+.settings-danger-solid:not(:disabled):hover {
+  border-color: transparent;
+  background: var(--color-settings-danger-hover);
+  color: var(--color-settings-danger-foreground);
 }
 .connection-dialog-actions {
   justify-content: flex-end;
@@ -503,6 +579,18 @@ button:disabled {
   line-height: 16px;
 }
 @container (max-width: 300px) {
+  .settings-directory-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-directory-row > [data-slot='button'] {
+    width: 100%;
+  }
+  .settings-sync-key-row {
+    display: grid;
+  }
+  .settings-sync-key-row > [data-slot='button'] {
+    width: 100%;
+  }
   .settings-backup-actions,
   .settings-update-actions {
     display: grid;
@@ -513,7 +601,7 @@ button:disabled {
     width: 100%;
   }
 }
-@container (max-width: 720px) {
+@container (max-width: 520px) {
   .settings-workspace {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);

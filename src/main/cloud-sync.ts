@@ -751,13 +751,13 @@ export function registerCloudSyncIpc(): void {
         } finally {
           await client.end().catch(() => undefined)
         }
-        return { copyAvailable: true, error: await syncNow() }
+        return { key: syncKey, copyAvailable: true, error: await syncNow() }
       } catch (error) {
         console.error('[cloud-sync] 重置云端数据失败', error)
-        return { copyAvailable: true, error: errorMessage(error) }
+        return { key: syncKey, copyAvailable: true, error: errorMessage(error) }
       }
     }
-    return { copyAvailable: true, error: null }
+    return { key: syncKey, copyAvailable: true, error: null }
   })
 
   ipcMain.handle(IPC.CloudSyncCopyGeneratedKey, (): boolean => {

@@ -6,16 +6,13 @@ import {
   Copy,
   DatabaseBackup,
   Download,
-  Eraser,
   FolderDown,
   FolderOpen,
   Info,
-  KeyRound,
   MonitorCog,
   PlugZap,
   RefreshCw,
   Rocket,
-  RotateCcw,
   Save,
   SquareTerminal,
   Trash2,
@@ -232,8 +229,8 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
     password: ''
   })
   const [syncKeyInput, setSyncKeyInput] = useState('')
-  const [syncKeySource, setSyncKeySource] = useState<'generate' | 'existing'>('generate')
-  const [syncGeneratedCopyAvailable, setSyncGeneratedCopyAvailable] = useState(false)
+  const [generatedSyncKey, setGeneratedSyncKey] = useState<string | null>(null)
+  const [syncKeyMasked, setSyncKeyMasked] = useState(false)
   const [syncBusy, setSyncBusy] = useState(false)
   const [regenKeyAsk, setRegenKeyAsk] = useState(false)
   const [clearRemoteAsk, setClearRemoteAsk] = useState(false)
@@ -253,6 +250,10 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
       off()
     }
   }, [])
+
+  useEffect(() => {
+    if (syncState?.hasKey && !generatedSyncKey && !syncKeyInput) setSyncKeyMasked(true)
+  }, [generatedSyncKey, syncKeyInput, syncState?.hasKey])
 
   // 云同步状态：初始拉取一次，后续跟随主进程状态广播；连接参数只读安全视图（不含密码）
   useEffect(() => {
@@ -514,27 +515,10 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
     setRegenKeyAsk(false)
     setSyncBusy(true)
     try {
-      const result = (await window.api.cloudSync.generateKey()) as
-        | Awaited<ReturnType<typeof window.api.cloudSync.generateKey>>
-        | { copied: boolean; error: string | null }
-        | string
-        | null
-      // 开发环境可能只热更新渲染层，旧主进程仍返回 string | null 并保留 copyKey。
-      if (result === null || typeof result === 'string') {
-        setSyncGeneratedCopyAvailable(true)
-        toast.success(t('settings.syncKeyGenerated'))
-        if (typeof result === 'string') {
-          toast.error(t('settings.syncFailed', { message: result }))
-        }
-        return
-      }
-      if ('copied' in result) {
-        setSyncGeneratedCopyAvailable(false)
-        toast.error(t('settings.syncLegacyKeyGenerated'))
-        if (result.error) toast.error(t('settings.syncFailed', { message: result.error }))
-        return
-      }
-      setSyncGeneratedCopyAvailable(result.copyAvailable)
+      const result = await window.api.cloudSync.generateKey()
+      setGeneratedSyncKey(result.key)
+      setSyncKeyInput('')
+      setSyncKeyMasked(false)
       if (result.copyAvailable) toast.success(t('settings.syncKeyGenerated'))
       if (result.error) toast.error(t('settings.syncFailed', { message: result.error }))
     } catch (error) {
@@ -545,13 +529,12 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   }
 
   const copyGeneratedSyncKey = async () => {
-    const api = window.api.cloudSync as typeof window.api.cloudSync & {
-      copyKey?: () => Promise<boolean>
-    }
     try {
-      const copied = await (api.copyGeneratedKey?.() ?? api.copyKey?.() ?? Promise.resolve(false))
+      const copied = await window.api.cloudSync.copyGeneratedKey()
       if (copied) {
-        setSyncGeneratedCopyAvailable(false)
+        setGeneratedSyncKey(null)
+        setSyncKeyInput('')
+        setSyncKeyMasked(true)
         toast.success(t('settings.syncKeyCopied'))
       } else toast.error(t('settings.syncKeyCopyFailed'))
     } catch {
@@ -562,10 +545,32 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const submitSyncKey = () =>
     runSyncAction(async () => {
       const error = await window.api.cloudSync.setKey(syncKeyInput)
-      if (!error) setSyncKeyInput('')
+      if (!error) {
+        setSyncKeyInput('')
+        setSyncKeyMasked(true)
+      }
       return error
     }, 'settings.syncKeySaved')
 
+  const updateSyncKey = () => {
+    if (generatedSyncKey) {
+      void copyGeneratedSyncKey()
+    } else if (syncKeyInput.trim()) {
+      void submitSyncKey()
+    } else if (syncKeyMasked || syncState?.hasKey) {
+      setRegenKeyAsk(true)
+    } else {
+      void generateSyncKey()
+    }
+  }
+
+  const syncKeyActionLabel = generatedSyncKey
+    ? t('settings.syncCopyKeyOnce')
+    : syncKeyInput.trim()
+      ? t('settings.syncUseKey')
+      : syncKeyMasked || syncState?.hasKey
+        ? t('settings.syncRegenerateKey')
+        : t('settings.syncGenerateKey')
   const toggleSyncEnabled = (enabled: boolean) =>
     runSyncAction(
       () => window.api.cloudSync.setEnabled(enabled),
@@ -648,7 +653,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
 
       <div className="settings-workspace-main">
         <header className="settings-workspace-header">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="settings-page-title">
               {activeCategory.label}
             </h1>
@@ -656,7 +661,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
               {activeCategory.description}
             </p>
           </div>
-          <span className="settings-page-meta ml-auto shrink-0">
+          <span className="settings-page-meta ml-auto max-w-full shrink truncate">
             {t('settings.autoApplied')}
           </span>
         </header>
@@ -899,15 +904,15 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
               <div className="flex max-w-[560px] flex-col gap-3">
                 <div>
                   <Label>{t('settings.downloadDir')}</Label>
-                  <div
-                    className="settings-control-surface flex h-9 min-w-0 items-center rounded-sm border px-2.5 font-mono text-[11px] text-faint"
-                    title={settings.downloadDir || undefined}
-                  >
-                    <span className="truncate">
-                      {settings.downloadDir || t('settings.downloadDirAsk')}
-                    </span>
-                  </div>
-                  <div className="settings-backup-actions mt-2 grid gap-3">
+                  <div className="settings-directory-row">
+                    <div
+                      className="settings-control-surface flex h-9 min-w-0 items-center rounded-sm border px-2.5 font-mono text-[11px] text-faint"
+                      title={settings.downloadDir || undefined}
+                    >
+                      <span className="truncate">
+                        {settings.downloadDir || t('settings.downloadDirAsk')}
+                      </span>
+                    </div>
                     <Button
                       variant="solid"
                       onClick={async () => {
@@ -917,14 +922,6 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     >
                       <FolderOpen data-icon="inline-start" />
                       {t('settings.selectDirectory')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      disabled={!settings.downloadDir}
-                      onClick={() => patch({ downloadDir: '' })}
-                    >
-                      <RotateCcw data-icon="inline-start" />
-                      {t('settings.downloadDirReset')}
                     </Button>
                   </div>
                 </div>
@@ -1367,79 +1364,29 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </div>
                 </div>
                 <div>
-                  <Label>{t('settings.syncKeySource')}</Label>
-                  <ToggleGroup
-                    type="single"
-                    value={syncKeySource}
-                    aria-label={t('settings.syncKeySource')}
-                    onValueChange={(value) => {
-                      if (value) setSyncKeySource(value as 'generate' | 'existing')
-                    }}
-                  >
-                    <ToggleGroupItem value="generate">
-                      {t('settings.syncGenerateMode')}
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="existing">
-                      {t('settings.syncExistingMode')}
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                </div>
-                {syncKeySource === 'generate' ? (
-                  <div className="settings-backup-actions grid gap-3">
-                    <Button
-                      variant="ghost"
-                      disabled={syncBusy || !syncGeneratedCopyAvailable}
-                      onClick={() => void copyGeneratedSyncKey()}
-                    >
-                      <Copy data-icon="inline-start" />
-                      {t('settings.syncCopyKeyOnce')}
-                    </Button>
-                    <Button
-                      variant="solid"
-                      disabled={syncBusy}
-                      onClick={() =>
-                        syncState?.hasKey ? setRegenKeyAsk(true) : void generateSyncKey()
+                  <Label htmlFor="sync-key-input">{t('settings.syncKeyInput')}</Label>
+                  <div className="settings-sync-key-row">
+                    <Input
+                      id="sync-key-input"
+                      type={generatedSyncKey ? 'text' : 'password'}
+                      autoComplete="off"
+                      readOnly={Boolean(generatedSyncKey) || syncKeyMasked}
+                      value={generatedSyncKey ?? syncKeyInput}
+                      placeholder={
+                        syncKeyMasked ? '****************' : t('settings.syncKeyPlaceholder')
                       }
-                    >
-                      <RefreshCw data-icon="inline-start" />
-                      {syncState?.hasKey
-                        ? t('settings.syncRegenerateKey')
-                        : t('settings.syncGenerateKey')}
+                      onChange={(event) => setSyncKeyInput(event.currentTarget.value)}
+                    />
+                    <Button variant="solid" disabled={syncBusy} onClick={updateSyncKey}>
+                      {generatedSyncKey ? (
+                        <Copy data-icon="inline-start" />
+                      ) : (
+                        <RefreshCw data-icon="inline-start" />
+                      )}
+                      {syncKeyActionLabel}
                     </Button>
                   </div>
-                ) : (
-                  <div>
-                    <Label htmlFor="sync-key-input">{t('settings.syncKeyInput')}</Label>
-                    <div className="flex flex-col gap-2">
-                      <Input
-                        id="sync-key-input"
-                        type="password"
-                        autoComplete="off"
-                        value={syncKeyInput}
-                        placeholder={t('settings.syncKeyPlaceholder')}
-                        onChange={(event) => setSyncKeyInput(event.currentTarget.value)}
-                      />
-                      <div className="settings-backup-actions grid gap-3">
-                        <Button
-                          variant="solid"
-                          disabled={syncBusy || !syncKeyInput.trim()}
-                          onClick={() => void submitSyncKey()}
-                        >
-                          <KeyRound data-icon="inline-start" />
-                          {t('settings.syncUseKey')}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          disabled={syncBusy || syncKeyInput.length === 0}
-                          onClick={() => setSyncKeyInput('')}
-                        >
-                          <Eraser data-icon="inline-start" />
-                          {t('settings.syncClearKey')}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             </SettingsSection>
 
@@ -1498,7 +1445,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
               </div>
             </SettingsSection>
 
-            {/* 重新生成密钥确认：云端密文将被清空重写 */}
+            {/* 重置密钥确认：云端密文将被清空重写 */}
             <Dialog open={regenKeyAsk} onOpenChange={setRegenKeyAsk}>
               <DialogContent>
                 <DialogHeader>
@@ -1515,7 +1462,8 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </Button>
                   <Button
                     size="sm"
-                    variant="solid"
+                    variant="danger"
+                    className="settings-danger-solid"
                     disabled={syncBusy}
                     onClick={() => void generateSyncKey()}
                   >

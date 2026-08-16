@@ -300,6 +300,8 @@ export interface CloudSyncConnectionView {
 }
 
 export interface CloudSyncGenerateKeyResult {
+  /** 仅在本次生成响应中提供，复制后界面立即清除。 */
+  key: string
   /** 当前界面是否可请求主进程复制这把新密钥一次 */
   copyAvailable: boolean
   /** null 表示生成及后续云端处理成功 */
