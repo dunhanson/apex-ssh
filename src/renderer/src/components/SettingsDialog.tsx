@@ -279,6 +279,12 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   }, [])
 
   useEffect(() => {
+    return () => {
+      void window.api.cloudSync.discardGeneratedKey()
+    }
+  }, [])
+
+  useEffect(() => {
     if (!includeCredentials) {
       setBackupStats(null)
       return
