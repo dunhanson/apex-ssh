@@ -12,6 +12,7 @@ import { SettingsWorkspace } from '@/components/SettingsDialog'
 import { EmptyState, type ConnectionAddress } from '@/components/EmptyState'
 import { ConnectionHub, type HostAction } from '@/components/ConnectionHub'
 import { GroupManagerDialog } from '@/components/GroupManagerDialog'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Toaster } from '@/components/ui/sonner'
 import { getTerminal } from '@/lib/terminals'
 import { setSettings, useSettings } from '@/lib/settings'
@@ -54,6 +55,7 @@ export default function App() {
   const [connectionDialogFromHub, setConnectionDialogFromHub] = useState(false)
   const [editingHost, setEditingHost] = useState<HostConfig | null>(null)
   const [keysOpen, setKeysOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [connectionsOpen, setConnectionsOpen] = useState(false)
   const [groupsOpen, setGroupsOpen] = useState(false)
   const [groupManagerTarget, setGroupManagerTarget] = useState<string | null>(null)
@@ -202,11 +204,9 @@ export default function App() {
     setFocusSide(side)
   }, [])
 
-  /** 设置作为主窗格中的单例工具标签打开。 */
+  /** 设置以独立管理弹窗打开，保留当前终端或启动页作为背景。 */
   const openSettings = useCallback(() => {
-    setLeftTabs((prev) => (prev.includes(SETTINGS_TAB_ID) ? prev : [...prev, SETTINGS_TAB_ID]))
-    setActiveLeft(SETTINGS_TAB_ID)
-    setFocusSide('left')
+    setSettingsOpen(true)
   }, [])
 
   /** 点击主机：已有活会话则激活，否则在焦点窗格新建 */
@@ -605,8 +605,6 @@ export default function App() {
     const activeId = side === 'right' ? activeRight : activeLeft
     const active = activeId ? sessionsById.get(activeId) : undefined
     const activeIsBlank = !!activeId && blankTabs.has(activeId)
-    const activeIsSettings = side === 'left' && activeId === SETTINGS_TAB_ID
-    const hasSettings = side === 'left' && ids.includes(SETTINGS_TAB_ID)
     return (
       <div
         className="settings-pane h-full flex flex-col min-w-0"
@@ -650,17 +648,6 @@ export default function App() {
                   setDialogOpen(true)
                 }}
                 onOpenConnections={() => setConnectionsOpen(true)}
-              />
-            </div>
-          )}
-          {hasSettings && (
-            <div className={cn('absolute inset-0', !activeIsSettings && 'hidden')}>
-              <SettingsWorkspace
-                onHostsImported={async () => setHosts(await window.api.hosts.list())}
-                activeSessions={
-                  sessions.filter((s) => s.status === 'connecting' || s.status === 'connected')
-                    .length
-                }
               />
             </div>
           )}
@@ -771,6 +758,14 @@ export default function App() {
           setConnectionsOpen(true)
         }}
       />
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="settings-dialog h-[680px] w-[720px] max-h-[calc(100vh-32px)] max-w-[calc(100vw-32px)] overflow-hidden p-0">
+          <SettingsWorkspace
+            onHostsImported={async () => setHosts(await window.api.hosts.list())}
+            activeSessions={sessions.filter((s) => s.status === 'connecting' || s.status === 'connected').length}
+          />
+        </DialogContent>
+      </Dialog>
       <ConnectionHub
         open={connectionsOpen}
         onOpenChange={setConnectionsOpen}

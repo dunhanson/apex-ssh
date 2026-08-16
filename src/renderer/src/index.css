@@ -252,11 +252,15 @@ button:disabled {
 .settings-pane {
   container-type: inline-size;
 }
+.settings-dialog {
+  container-type: inline-size;
+}
 .settings-workspace {
   display: grid;
   grid-template-columns: 184px minmax(0, 1fr);
   height: 100%;
   min-width: 0;
+  container-type: inline-size;
   background: var(--color-page);
 }
 .settings-navigation-title {
@@ -270,6 +274,8 @@ button:disabled {
   text-transform: uppercase;
 }
 .settings-workspace-main {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -282,11 +288,13 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 0 32px;
+  padding: 0 64px 0 32px;
   border-bottom: 1px solid var(--color-line);
   box-sizing: border-box;
 }
 .settings-workspace-content {
+  flex: 1 1 auto;
+  min-height: 0;
   width: min(680px, 100%);
   padding: 28px 32px 48px;
   box-sizing: border-box;
@@ -504,7 +512,7 @@ button:disabled {
     width: 100%;
   }
 }
-@container (max-width: 720px) {
+@container (max-width: 520px) {
   .settings-workspace {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr);
