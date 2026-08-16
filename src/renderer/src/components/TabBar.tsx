@@ -24,7 +24,6 @@ export type WorkspaceTab =
       hostId: string
       status: SessionStatus
       sftpOpen: boolean
-      monitorOpen: boolean
     })
   | (TabBase & { kind: 'blank' })
   | (TabBase & { kind: 'settings' })
@@ -41,7 +40,6 @@ export type TabAction =
   | 'splitRight'
   | 'moveToWindow'
   | 'toggleSftp'
-  | 'toggleMonitor'
 
 export type PaneSide = 'left' | 'right'
 
@@ -159,12 +157,6 @@ function Tab({ tab, side, active, isLast, onActivate, onClose, onAction }: TabPr
         </ContextMenuItem>
         <ContextMenuItem disabled={tab.status !== 'connected'} onSelect={() => onAction('toggleSftp')}>
           {t(tab.sftpOpen ? 'tabMenu.closeSftp' : 'tabMenu.openSftp')}
-        </ContextMenuItem>
-        <ContextMenuItem
-          disabled={tab.status !== 'connected'}
-          onSelect={() => onAction('toggleMonitor')}
-        >
-          {t(tab.monitorOpen ? 'tabMenu.closeMonitor' : 'tabMenu.openMonitor')}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={() => onAction('close')}>{t('tabMenu.close')}</ContextMenuItem>

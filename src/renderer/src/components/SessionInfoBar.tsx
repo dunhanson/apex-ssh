@@ -1,4 +1,4 @@
-import { Activity, FolderOpen } from 'lucide-react'
+import { FolderOpen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import type { HostConfig, SessionStatus } from '@shared/types'
 import { cn } from '@/lib/utils'
@@ -17,8 +17,6 @@ interface SessionInfoBarProps {
   status: SessionStatus
   sftpOpen: boolean
   onToggleSftp: () => void
-  monitorOpen: boolean
-  onToggleMonitor: () => void
   onHide: () => void
 }
 
@@ -35,7 +33,7 @@ function dotClass(status: SessionStatus): string {
   }
 }
 
-export function SessionInfoBar({ host, status, sftpOpen, onToggleSftp, monitorOpen, onToggleMonitor, onHide }: SessionInfoBarProps) {
+export function SessionInfoBar({ host, status, sftpOpen, onToggleSftp, onHide }: SessionInfoBarProps) {
   const { t } = useTranslation()
   const statusText: Record<SessionStatus, string> = {
     connecting: t('infoBar.connecting'),
@@ -54,24 +52,14 @@ export function SessionInfoBar({ host, status, sftpOpen, onToggleSftp, monitorOp
             </span>
             <span className="font-mono text-[10px] text-ghost shrink-0">{statusText[status]}</span>
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              className={cn('icon-btn', sftpOpen && '!text-fg bg-white/[0.06]')}
-              title={t('infoBar.sftp')}
-              onClick={onToggleSftp}
-            >
-              <FolderOpen className="size-3.5" />
-              <span className="ml-1 font-mono text-[10px]">SFTP</span>
-            </button>
-            <button
-              className={cn('icon-btn', monitorOpen && '!text-fg bg-white/[0.06]')}
-              title={t('infoBar.monitor')}
-              onClick={onToggleMonitor}
-            >
-              <Activity className="size-3.5" />
-              <span className="ml-1 font-mono text-[10px]">{t('infoBar.monitorShort')}</span>
-            </button>
-          </div>
+          <button
+            className={cn('icon-btn', sftpOpen && '!text-fg bg-white/[0.06]')}
+            title={t('infoBar.sftp')}
+            onClick={onToggleSftp}
+          >
+            <FolderOpen className="size-3.5" />
+            <span className="ml-1 font-mono text-[10px]">SFTP</span>
+          </button>
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>

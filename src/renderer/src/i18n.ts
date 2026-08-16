@@ -55,34 +55,10 @@ const resources = {
         splitRight: '向右分屏',
         moveToWindow: '移到新窗口',
         openSftp: '打开 SFTP',
-        closeSftp: '关闭 SFTP',
-        openMonitor: '打开监控',
-        closeMonitor: '关闭监控'
+        closeSftp: '关闭 SFTP'
       },
       tabs: {
         newTab: '新标签'
-      },
-      monitor: {
-        title: '监控',
-        pause: '暂停',
-        resume: '继续',
-        close: '关闭监控',
-        dragHeight: '拖拽调整面板高度',
-        refreshInterval: '刷新频率',
-        seconds: '{{count}} 秒',
-        loading: '正在采集主机信息…',
-        linuxOnly: '当前仅支持 Linux',
-        cpu: 'CPU',
-        memory: '内存',
-        disk: '磁盘',
-        network: '网络',
-        rx: '接收',
-        tx: '发送',
-        used: '已用',
-        available: '可用',
-        cores: '核',
-        threads: '线程',
-        doubleClickToSwitch: '双击可切换网卡'
       },
       connections: {
         title: '配置和连接',
@@ -124,8 +100,6 @@ const resources = {
         error: '连接失败',
         closed: '已断开',
         sftp: 'SFTP 文件传输',
-        monitor: '主机监控',
-        monitorShort: '监控',
         hide: '隐藏会话信息栏'
       },
       empty: {
@@ -334,12 +308,6 @@ const resources = {
         langSystem: '跟随系统',
         langZh: '中文',
         langEn: 'English',
-        monitor: '监控',
-        monitorDescription: '主机资源监控采集与展示',
-        monitorRefreshInterval: '刷新频率（秒）',
-        monitorEnabledByDefault: '默认展开监控面板',
-        monitorBackgroundEnabled: '后台自动运行监控',
-        monitorNote: '刷新频率作用于所有会话的监控面板；开启后台运行后，连接成功即自动采集，断开后清空。',
         transfer: '传输',
         transferDescription: '默认路径与文件传输行为',
         transferSaveLocation: '保存位置',
@@ -548,34 +516,10 @@ const resources = {
         splitRight: 'Split right',
         moveToWindow: 'Move to new window',
         openSftp: 'Open SFTP',
-        closeSftp: 'Close SFTP',
-        openMonitor: 'Open monitor',
-        closeMonitor: 'Close monitor'
+        closeSftp: 'Close SFTP'
       },
       tabs: {
         newTab: 'New tab'
-      },
-      monitor: {
-        title: 'Monitor',
-        pause: 'Pause',
-        resume: 'Resume',
-        close: 'Close monitor',
-        dragHeight: 'Drag to resize panel',
-        refreshInterval: 'Refresh interval',
-        seconds: '{{count}}s',
-        loading: 'Collecting host info…',
-        linuxOnly: 'Linux only',
-        cpu: 'CPU',
-        memory: 'Memory',
-        disk: 'Disk',
-        network: 'Network',
-        rx: 'RX',
-        tx: 'TX',
-        used: 'Used',
-        available: 'Available',
-        cores: 'cores',
-        threads: 'threads',
-        doubleClickToSwitch: 'Double-click to switch interface'
       },
       connections: {
         title: 'Connections',
@@ -617,8 +561,6 @@ const resources = {
         error: 'Connection failed',
         closed: 'Disconnected',
         sftp: 'SFTP file transfer',
-        monitor: 'Host monitor',
-        monitorShort: 'Monitor',
         hide: 'Hide session info bar'
       },
       empty: {
@@ -827,12 +769,6 @@ const resources = {
         langSystem: 'System',
         langZh: '中文',
         langEn: 'English',
-        monitor: 'Monitor',
-        monitorDescription: 'Host resource monitoring collection and display',
-        monitorRefreshInterval: 'Refresh interval (seconds)',
-        monitorEnabledByDefault: 'Open monitor panel by default',
-        monitorBackgroundEnabled: 'Run monitor in background',
-        monitorNote: 'The refresh interval applies to monitor panels of all sessions; when background monitoring is enabled, collection starts automatically on connect and clears on disconnect.',
         transfer: 'Transfer',
         transferDescription: 'Default locations and file transfer behavior',
         transferSaveLocation: 'Save location',
