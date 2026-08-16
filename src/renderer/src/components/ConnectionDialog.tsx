@@ -561,11 +561,11 @@ export function ConnectionDialog({
               </>
             )}
           </DialogBody>
-          <DialogFooter>
-            <Button type="button" variant="ghost" className="flex-1" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="connection-dialog-actions">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t('common.cancel')}
             </Button>
-            <Button type="button" variant="solid" className="flex-1" disabled={!valid} onClick={handleSubmit}>
+            <Button type="button" variant="solid" disabled={!valid} onClick={handleSubmit}>
               {isEdit ? t('common.save') : t('common.confirm')}
             </Button>
           </DialogFooter>
