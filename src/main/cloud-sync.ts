@@ -26,6 +26,7 @@ import {
 } from './sync-record-crypto'
 import {
   markDeleted,
+  countSyncedHosts,
   markPulled,
   markPushed,
   planMerge,
@@ -131,6 +132,7 @@ function currentState(): CloudSyncState {
     enabled: state.enabled,
     hasKey: !!state.syncKeyBlob,
     syncing,
+    syncedHostCount: countSyncedHosts(state.shadow),
     ...(state.lastSyncAt ? { lastSyncAt: state.lastSyncAt } : {}),
     ...(state.lastResult ? { lastResult: state.lastResult } : {}),
     ...(lastError ? { errorCode: lastError.code, message: lastError.message } : {})

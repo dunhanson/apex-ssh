@@ -404,7 +404,12 @@ function registerIpc(): void {
     settings.setLastDownloadDir(dirname(result.filePath))
     return result.filePath
   })
-  ipcMain.handle(IPC.SftpPickDownloadDir, async (e) => {
+  ipcMain.handle(IPC.UpdaterOpenProject, () => shell.openExternal('https://github.com/dunhanson/apex-ssh'))
+  ipcMain.handle(IPC.SftpPickDownloadDir, async (e, _sessionId: string, reuseLast = false) => {
+    if (reuseLast === true && settings.getSettings().downloadDirectoryMode === 'last') {
+      const lastDir = settings.getLastDownloadDir()
+      if (lastDir) return lastDir
+    }
     const win = BrowserWindow.fromWebContents(e.sender)
     const result = await dialog.showOpenDialog(win!, {
       title: '选择下载目录',

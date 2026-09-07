@@ -359,9 +359,10 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
   /** 快速下载：落到设置的默认下载目录；未设置时弹目录选择框（主进程记住上次位置） */
   const quickDownload = useCallback(
     async (entries: SftpEntry[], onDone?: () => void) => {
-      let dir = getSettingsSnapshot().downloadDir
+      const preferences = getSettingsSnapshot()
+      let dir = preferences.downloadDirectoryMode === 'fixed' ? preferences.downloadDir : ''
       if (!dir) {
-        dir = (await window.api.sftp.pickDownloadDir(sessionId)) ?? ''
+        dir = (await window.api.sftp.pickDownloadDir(sessionId, preferences.downloadDirectoryMode === 'last')) ?? ''
         if (!dir) return
       }
       await downloadToDir(entries, dir, onDone)
@@ -1181,6 +1182,7 @@ export function SftpPanel({ sessionId, onClose }: SftpPanelProps) {
 /** 队列行：↑ 上传绿 / ↓ 下载蓝、文件名、大小、进度条、百分比、暂停/续传/移除 */
 function TransferRow({ item }: { item: TransferItem }) {
   const { t } = useTranslation()
+  const { showTransferProgress } = useSettings()
   const pct = item.total > 0 ? Math.min(100, Math.round((item.transferred / item.total) * 100)) : 0
   const active =
     item.status === 'queued' || item.status === 'running' || item.status === 'paused'
@@ -1205,7 +1207,7 @@ function TransferRow({ item }: { item: TransferItem }) {
       <span className="w-[128px] shrink-0 whitespace-nowrap text-right text-faint">
         {fmtSize(item.transferred)} / {item.total > 0 ? fmtSize(item.total) : '…'}
       </span>
-      <div className="flex-1 h-[3px] bg-white/[0.06] rounded-full overflow-hidden">
+      <div className={cn('flex-1 h-[3px] bg-white/[0.06] rounded-full overflow-hidden', !showTransferProgress && 'invisible')}>
         <div
           className={cn(
             'h-full transition-[width] duration-200',

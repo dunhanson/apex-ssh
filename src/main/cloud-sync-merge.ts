@@ -29,6 +29,10 @@ export interface ShadowEntry {
 /** key 为 recordId */
 export type ShadowState = Record<string, ShadowEntry>
 
+export function countSyncedHosts(shadow: ShadowState): number {
+  return Object.entries(shadow).filter(([id, entry]) => id.startsWith('host:') && !entry.remoteDeleted).length
+}
+
 export interface MergePlan {
   /** 本地新增或变更，需要加密上传的记录 */
   push: Array<{ recordId: string; kind: SyncRecordKind }>

@@ -13,7 +13,7 @@ import { SettingsWorkspace } from '@/components/SettingsDialog'
 import { EmptyState, type ConnectionAddress } from '@/components/EmptyState'
 import { ConnectionHub, type HostAction } from '@/components/ConnectionHub'
 import { GroupManagerDialog } from '@/components/GroupManagerDialog'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Toaster } from '@/components/ui/sonner'
 import { getTerminal } from '@/lib/terminals'
 import { setSettings, useSettings } from '@/lib/settings'
@@ -843,7 +843,8 @@ export default function App() {
         }}
       />
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="settings-dialog h-[680px] w-[720px] max-h-[calc(100vh-32px)] max-w-[calc(100vw-32px)] overflow-hidden p-0">
+        <DialogContent className="settings-dialog overflow-hidden p-0" showCloseButton={false} aria-describedby={undefined}>
+          <DialogTitle className="sr-only">{t('settings.title')}</DialogTitle>
           <SettingsWorkspace
             onHostsImported={async () => setHosts(await window.api.hosts.list())}
             activeSessions={sessions.filter((s) => s.status === 'connecting' || s.status === 'connected').length}

@@ -1,19 +1,34 @@
 import { Toaster as SonnerToaster } from 'sonner'
+import { CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
-/** toast：对应原型 .toast（顶部居中、#0a0a0a 底、JetBrains Mono、2px 圆角） */
 function Toaster() {
+  const { t } = useTranslation()
   return (
     <SonnerToaster
-      position="top-center"
+      position="bottom-right"
+      offset={16}
+      mobileOffset={16}
       gap={8}
-      visibleToasts={1}
+      visibleToasts={3}
+      duration={4000}
+      closeButton
+      icons={{
+        success: <CircleCheck size={14} />,
+        error: <CircleAlert size={14} />,
+        warning: <TriangleAlert size={14} />,
+        info: <Info size={14} />
+      }}
       toastOptions={{
+        closeButtonAriaLabel: t('common.close'),
         unstyled: true,
         classNames: {
-          toast:
-            'flex items-center gap-2 bg-raised border border-white/[0.14] text-body rounded-sm px-3.5 py-2 font-mono text-xs shadow-lg',
+          toast: 'apex-toast',
+          content: 'apex-toast-content',
+          closeButton: 'apex-toast-close',
           success: '[&_[data-icon]]:text-ok',
           error: '[&_[data-icon]]:text-danger',
+          warning: '[&_[data-icon]]:text-warn',
           info: '[&_[data-icon]]:text-dim'
         }
       }}
