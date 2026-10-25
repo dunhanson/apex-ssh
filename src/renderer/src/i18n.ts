@@ -143,7 +143,10 @@ const resources = {
         cleared: '最近使用已清空',
         quickPlaceholder: '搜索已保存主机或输入地址…',
         confirm: '确认',
-        directHint: '按确认打开连接配置',
+        protocol: '连接协议',
+        matches: '匹配结果',
+        matchCount: '{{count}} 项',
+        directHint: '未找到匹配的主机，按回车配置连接',
         noRecent: '暂无最近连接'
       },
       toast: {
@@ -696,6 +699,9 @@ const resources = {
         cleared: 'Recents cleared',
         quickPlaceholder: 'Search saved hosts or enter an address…',
         confirm: 'ENTER',
+        protocol: 'Connection protocol',
+        matches: 'Matches',
+        matchCount: '{{count}} results',
         directHint: 'Press Enter to configure this connection',
         noRecent: 'No recent connections'
       },
