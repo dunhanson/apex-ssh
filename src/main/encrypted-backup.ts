@@ -9,7 +9,6 @@ import { chmodSync, promises as fsp } from 'node:fs'
 import { promisify } from 'node:util'
 import type { EncryptedBackupStats, HostConfig, HostGroup } from '@shared/types'
 
-const scrypt = promisify(scryptCallback)
 const execFile = promisify(execFileCallback)
 
 export const ENCRYPTED_BACKUP_FORMAT = 'apex-encrypted-backup'
@@ -111,12 +110,14 @@ function aadFor(container: EncryptedBackupContainer): Buffer {
 }
 
 async function deriveKey(password: string, salt: Buffer): Promise<Buffer> {
-  return (await scrypt(password, salt, 32, {
-    N: SCRYPT_N,
-    r: SCRYPT_R,
-    p: SCRYPT_P,
-    maxmem: SCRYPT_MAXMEM
-  })) as Buffer
+  return new Promise<Buffer>((resolve, reject) => {
+    scryptCallback(password, salt, 32, {
+      N: SCRYPT_N,
+      r: SCRYPT_R,
+      p: SCRYPT_P,
+      maxmem: SCRYPT_MAXMEM
+    }, (error, key) => error ? reject(error) : resolve(key))
+  })
 }
 
 export function parseEncryptedContainer(value: unknown): EncryptedBackupContainer {

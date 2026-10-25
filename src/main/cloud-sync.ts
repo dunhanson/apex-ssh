@@ -1,6 +1,7 @@
 import Store from 'electron-store'
 import { BrowserWindow, clipboard, ipcMain, safeStorage } from 'electron'
 import { scryptSync } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import type {
   CloudSyncConnectionInput,
   CloudSyncConnectionView,

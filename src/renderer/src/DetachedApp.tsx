@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { DetachedSessionInfo, SessionStatus } from '@shared/types'
@@ -6,6 +6,8 @@ import { TabBar } from '@/components/TabBar'
 import { TerminalView } from '@/components/TerminalView'
 import { SessionInfoBar } from '@/components/SessionInfoBar'
 import { SftpPanel } from '@/components/SftpPanel'
+import { MonitorPanel } from '@/components/MonitorPanel'
+import { useBackgroundMonitor } from '@/lib/useBackgroundMonitor'
 import { Toaster } from '@/components/ui/sonner'
 import { setSettings, useSettings } from '@/lib/settings'
 
@@ -25,6 +27,36 @@ export default function DetachedApp({ sessionId }: DetachedAppProps) {
   const [status, setStatus] = useState<SessionStatus>('connecting')
   const [missing, setMissing] = useState(false)
   const [sftpOpen, setSftpOpen] = useState(false)
+  const [monitorOpen, setMonitorOpen] = useState(false)
+  const connectedSessions = useMemo(
+    () => info && status === 'connected' ? [sessionId] : [],
+    [info, status, sessionId]
+  )
+  const { states: monitorStates, openMonitor, closeMonitor, togglePause, setIface } = useBackgroundMonitor(
+    (id) => (command) => window.api.ssh.exec(id, command),
+    connectedSessions,
+    settings.monitorBackgroundEnabled,
+    settings.monitorRefreshInterval
+  )
+
+  const toggleSftp = () => {
+    if (status !== 'connected') return
+    if (!sftpOpen) {
+      setMonitorOpen(false)
+      closeMonitor(sessionId)
+    }
+    setSftpOpen(!sftpOpen)
+  }
+  const toggleMonitor = () => {
+    if (status !== 'connected') return
+    if (!monitorOpen) {
+      setSftpOpen(false)
+      openMonitor(sessionId)
+    } else {
+      closeMonitor(sessionId)
+    }
+    setMonitorOpen(!monitorOpen)
+  }
 
   useEffect(() => {
     window.api.session.attach(sessionId).then((res) => {
@@ -67,7 +99,8 @@ export default function DetachedApp({ sessionId }: DetachedAppProps) {
             title,
             detail: info ? `${info.host.username}@${info.host.host}:${info.host.port} · ${t(`infoBar.${status}`)}` : undefined,
             status,
-            sftpOpen
+            sftpOpen,
+            monitorOpen
           }
         ]}
         rightTabs={null}
@@ -79,7 +112,11 @@ export default function DetachedApp({ sessionId }: DetachedAppProps) {
         onClose={() => window.api.window.close()}
         onAction={(_side, _id, action) => {
           if (action === 'toggleSftp' && status === 'connected') {
-            setSftpOpen((value) => !value)
+            toggleSftp()
+            return
+          }
+          if (action === 'toggleMonitor' && status === 'connected') {
+            toggleMonitor()
             return
           }
           if (action === 'close' || action === 'closeAll' || action === 'disconnect') {
@@ -92,7 +129,9 @@ export default function DetachedApp({ sessionId }: DetachedAppProps) {
           host={info.host}
           status={status}
           sftpOpen={sftpOpen}
-          onToggleSftp={() => setSftpOpen((v) => !v)}
+          onToggleSftp={toggleSftp}
+          monitorOpen={monitorOpen}
+          onToggleMonitor={toggleMonitor}
           onHide={() => setSettings({ showSessionInfoBar: false })}
         />
       )}
@@ -109,6 +148,18 @@ export default function DetachedApp({ sessionId }: DetachedAppProps) {
       </div>
       {info && sftpOpen && status === 'connected' && (
         <SftpPanel sessionId={sessionId} onClose={() => setSftpOpen(false)} />
+      )}
+      {info && monitorOpen && !sftpOpen && status === 'connected' && monitorStates[sessionId] && (
+        <MonitorPanel
+          sessionId={sessionId}
+          state={monitorStates[sessionId]}
+          onClose={() => {
+            setMonitorOpen(false)
+            closeMonitor(sessionId)
+          }}
+          onTogglePause={() => togglePause(sessionId)}
+          onChangeIface={(iface) => setIface(sessionId, iface)}
+        />
       )}
       <Toaster />
     </div>
