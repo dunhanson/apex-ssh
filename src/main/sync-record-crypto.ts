@@ -4,10 +4,8 @@ import {
   randomBytes,
   scrypt as scryptCallback
 } from 'node:crypto'
-import { promisify } from 'node:util'
 import { SCRYPT_N, SCRYPT_R, SCRYPT_P } from './encrypted-backup'
 
-const scrypt = promisify(scryptCallback)
 
 /**
  * 云同步记录级加密容器：每条记录独立盐与 nonce，recordId / kind 作为 AAD，
@@ -80,12 +78,14 @@ function aadFor(recordId: string, kind: SyncRecordKind, envelope: SyncRecordEnve
 }
 
 async function deriveKey(syncKey: string, salt: Buffer): Promise<Buffer> {
-  return (await scrypt(syncKey, salt, 32, {
-    N: SCRYPT_N,
-    r: SCRYPT_R,
-    p: SCRYPT_P,
-    maxmem: SCRYPT_MAXMEM
-  })) as Buffer
+  return new Promise<Buffer>((resolve, reject) => {
+    scryptCallback(syncKey, salt, 32, {
+      N: SCRYPT_N,
+      r: SCRYPT_R,
+      p: SCRYPT_P,
+      maxmem: SCRYPT_MAXMEM
+    }, (error, key) => error ? reject(error) : resolve(key))
+  })
 }
 
 /** 严格校验云端读取的加密容器；任何字段异常统一按密钥/数据错误处理 */

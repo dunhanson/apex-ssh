@@ -13,7 +13,7 @@ import { SettingsWorkspace } from '@/components/SettingsDialog'
 import { EmptyState, type ConnectionAddress } from '@/components/EmptyState'
 import { ConnectionHub, type HostAction } from '@/components/ConnectionHub'
 import { GroupManagerDialog } from '@/components/GroupManagerDialog'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Toaster } from '@/components/ui/sonner'
 import { getTerminal } from '@/lib/terminals'
 import { setSettings, useSettings } from '@/lib/settings'
@@ -241,17 +241,21 @@ export default function App() {
 
   /** 点击主机：已有活会话则激活，否则在焦点窗格新建 */
   const connectHost = useCallback(
-    (host: HostConfig) => {
+    (host: HostConfig, protocol: 'ssh' | 'sftp' = 'ssh') => {
+      const openFiles = (sessionId: string) => {
+        if (protocol === 'sftp') setSftpOpen((prev) => ({ ...prev, [sessionId]: true }))
+      }
       const targetSide = rightTabs !== null ? focusSide : 'left'
       const activeId = targetSide === 'right' ? activeRight : activeLeft
       if (activeId && blankTabs.has(activeId)) {
-        createSession(host, targetSide, activeId)
+        openFiles(createSession(host, targetSide, activeId))
         return
       }
       const existing = sessionsRef.current.find(
         (s) => s.host.id === host.id && s.status !== 'closed' && s.status !== 'error'
       )
       if (existing) {
+        openFiles(existing.sessionId)
         if (rightTabs?.includes(existing.sessionId)) {
           setActiveRight(existing.sessionId)
           setFocusSide('right')
@@ -261,7 +265,7 @@ export default function App() {
         }
         return
       }
-      createSession(host, targetSide)
+      openFiles(createSession(host, targetSide))
     },
     [activeLeft, activeRight, blankTabs, createSession, focusSide, rightTabs]
   )
@@ -440,12 +444,12 @@ export default function App() {
         setDialogOpen(false)
         setConnectionAddress(null)
         setInitialConnectionGroup(null)
-        connectHost(saved)
+        connectHost(saved, connectionAddress?.protocol)
       } catch (err) {
         toast.error(t('toast.saveHostFailed', { message: err instanceof Error ? err.message : String(err) }))
       }
     },
-    [connectHost, t]
+    [connectHost, connectionAddress?.protocol, t]
   )
 
   /** 编辑主机：更新持久化并刷新本地列表 */
@@ -843,7 +847,8 @@ export default function App() {
         }}
       />
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="settings-dialog h-[680px] w-[720px] max-h-[calc(100vh-32px)] max-w-[calc(100vw-32px)] overflow-hidden p-0">
+        <DialogContent className="settings-dialog overflow-hidden p-0" showCloseButton={false} aria-describedby={undefined}>
+          <DialogTitle className="sr-only">{t('settings.title')}</DialogTitle>
           <SettingsWorkspace
             onHostsImported={async () => setHosts(await window.api.hosts.list())}
             activeSessions={sessions.filter((s) => s.status === 'connecting' || s.status === 'connected').length}

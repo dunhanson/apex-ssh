@@ -18,10 +18,7 @@ const store = new Store<{ settings: AppSettings; lastDownloadDir: string }>({
 })
 
 export function getSettings(): AppSettings {
-  return normalizeSettings({
-    ...DEFAULT_SETTINGS,
-    ...store.get('settings', DEFAULT_SETTINGS)
-  })
+  return normalizeSettings(store.get('settings', DEFAULT_SETTINGS))
 }
 
 export function setSettings(patch: Partial<AppSettings>): AppSettings {

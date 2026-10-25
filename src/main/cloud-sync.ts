@@ -1,6 +1,7 @@
 import Store from 'electron-store'
 import { BrowserWindow, clipboard, ipcMain, safeStorage } from 'electron'
 import { scryptSync } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import type {
   CloudSyncConnectionInput,
   CloudSyncConnectionView,
@@ -26,6 +27,7 @@ import {
 } from './sync-record-crypto'
 import {
   markDeleted,
+  countSyncedHosts,
   markPulled,
   markPushed,
   planMerge,
@@ -131,6 +133,7 @@ function currentState(): CloudSyncState {
     enabled: state.enabled,
     hasKey: !!state.syncKeyBlob,
     syncing,
+    syncedHostCount: countSyncedHosts(state.shadow),
     ...(state.lastSyncAt ? { lastSyncAt: state.lastSyncAt } : {}),
     ...(state.lastResult ? { lastResult: state.lastResult } : {}),
     ...(lastError ? { errorCode: lastError.code, message: lastError.message } : {})

@@ -2,6 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS, normalizeSettings } from './settings-values'
 
 describe('normalizeSettings', () => {
+  it('补齐界面与传输偏好，兼容旧下载目录行为', () => {
+    expect(normalizeSettings({ downloadDir: 'C:\\Downloads' })).toMatchObject({
+      downloadDirectoryMode: 'fixed', compactMode: false, interfaceAnimations: true,
+      showTransferProgress: true
+    })
+    expect(normalizeSettings({ downloadDir: '' }).downloadDirectoryMode).toBe('ask')
+    expect(normalizeSettings({ downloadDir: 'C:\\Downloads', downloadDirectoryMode: 'last' }).downloadDirectoryMode).toBe('last')
+    expect(normalizeSettings({ compactMode: true, interfaceAnimations: false, showTransferProgress: false })).toMatchObject({
+      compactMode: true, interfaceAnimations: false, showTransferProgress: false
+    })
+  })
   it('旧设置缺少新增终端字段时补齐产品默认值', () => {
     expect(
       normalizeSettings({

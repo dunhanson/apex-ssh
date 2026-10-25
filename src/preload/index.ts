@@ -127,8 +127,8 @@ const api: RendererApi = {
       ipcRenderer.invoke(IPC.SftpDownload, sessionId, taskId, items, conflict),
     pickDownloadPath: (sessionId: string, suggestedName: string): Promise<string | null> =>
       ipcRenderer.invoke(IPC.SftpPickDownload, sessionId, suggestedName),
-    pickDownloadDir: (sessionId: string): Promise<string | null> =>
-      ipcRenderer.invoke(IPC.SftpPickDownloadDir, sessionId),
+    pickDownloadDir: (sessionId: string, reuseLast = false): Promise<string | null> =>
+      ipcRenderer.invoke(IPC.SftpPickDownloadDir, sessionId, reuseLast),
     pause: (taskId: string) => ipcRenderer.send(IPC.SftpPause, taskId),
     resume: (taskId: string) => ipcRenderer.send(IPC.SftpResume, taskId),
     cancel: (taskId: string) => ipcRenderer.send(IPC.SftpCancel, taskId),
@@ -179,6 +179,7 @@ const api: RendererApi = {
   },
 
   updater: {
+    openProject: () => ipcRenderer.invoke(IPC.UpdaterOpenProject),
     getStatus: () => ipcRenderer.invoke(IPC.UpdaterGetStatus),
     check: () => ipcRenderer.invoke(IPC.UpdaterCheck),
     restartAndInstall: () => ipcRenderer.invoke(IPC.UpdaterRestartAndInstall),

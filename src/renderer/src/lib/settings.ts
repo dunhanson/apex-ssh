@@ -15,6 +15,10 @@ let current: AppSettings = {
   confirmMultilinePaste: true,
   language: 'system',
   showSessionInfoBar: true,
+  compactMode: false,
+  interfaceAnimations: true,
+  showTransferProgress: true,
+  downloadDirectoryMode: 'ask',
   downloadDir: '',
   downloadConflictPolicy: 'ask',
   uploadConflictPolicy: 'ask',
@@ -31,6 +35,10 @@ let current: AppSettings = {
 const listeners = new Set<() => void>()
 
 function notify(): void {
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.compact = String(current.compactMode)
+    document.documentElement.dataset.motion = String(current.interfaceAnimations)
+  }
   listeners.forEach((l) => l())
 }
 

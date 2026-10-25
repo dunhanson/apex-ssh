@@ -9,6 +9,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        secondary: 'border-settings-control bg-settings-control text-settings-label hover:border-settings-control-focus hover:bg-accent',
         ghost: 'border-line bg-surface text-body hover:border-white/20 hover:bg-accent hover:text-fg',
         solid: 'border-primary bg-primary text-primary-foreground hover:border-primary-hover hover:bg-primary-hover',
         danger: 'border-danger/40 bg-surface text-red-400 hover:border-danger/60 hover:bg-red-400/10 hover:text-red-300',

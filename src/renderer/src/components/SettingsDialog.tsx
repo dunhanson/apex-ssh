@@ -4,12 +4,17 @@ import {
   Activity,
   CloudUpload,
   Copy,
+  Check,
+  KeyRound,
+  Unplug,
   DatabaseBackup,
   Download,
   FolderDown,
   FolderOpen,
   Info,
   MonitorCog,
+  Minus,
+  Plus,
   PlugZap,
   RefreshCw,
   Rocket,
@@ -17,9 +22,11 @@ import {
   SquareTerminal,
   Trash2,
   Upload,
+  X,
   type LucideIcon
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { ScrollArea } from 'radix-ui'
 import type {
   AppSettings,
   CloudSyncConnectionInput,
@@ -28,6 +35,7 @@ import type {
   UpdateStatus
 } from '@shared/types'
 import logoUrl from '@/assets/logo.svg'
+import githubUrl from '@/assets/github.svg'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -42,9 +50,12 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
+import { SettingsConfirmation } from '@/components/SettingsConfirmation'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   Dialog,
+  DialogClose,
   DialogBody,
   DialogContent,
   DialogFooter,
@@ -218,6 +229,13 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const [backupPassword, setBackupPassword] = useState('')
   const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('')
   const [backupBusy, setBackupBusy] = useState(false)
+  const [backupCopyBusy, setBackupCopyBusy] = useState(false)
+  const [backupCopied, setBackupCopied] = useState(false)
+  useEffect(() => {
+    if (!backupCopied) return
+    const timer = setTimeout(() => setBackupCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [backupCopied])
   const [importPreview, setImportPreview] = useState<EncryptedBackupStats | null>(null)
   const [importStrategy, setImportStrategy] = useState<'merge' | 'replace'>('merge')
   const [syncState, setSyncState] = useState<CloudSyncState | null>(null)
@@ -232,6 +250,14 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const [generatedSyncKey, setGeneratedSyncKey] = useState<string | null>(null)
   const [syncKeyMasked, setSyncKeyMasked] = useState(false)
   const [syncBusy, setSyncBusy] = useState(false)
+  const [syncKeyCopied, setSyncKeyCopied] = useState(false)
+  useEffect(() => {
+    if (category !== 'sync') {
+      setGeneratedSyncKey(null)
+      setSyncKeyInput('')
+      setSyncKeyCopied(false)
+    }
+  }, [category])
   const [regenKeyAsk, setRegenKeyAsk] = useState(false)
   const [clearRemoteAsk, setClearRemoteAsk] = useState(false)
   const patch = (value: Partial<AppSettings>) => setSettings(value)
@@ -342,6 +368,8 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   const activeCategory = categories.find((item) => item.id === category) ?? categories[0]
 
   const closePasswordDialog = async () => {
+    if (backupBusy || backupCopyBusy) return
+    setBackupCopied(false)
     if (backupPasswordMode === 'import') await window.api.hosts.cancelEncryptedBackup()
     setBackupPasswordMode(null)
     setBackupPassword('')
@@ -389,26 +417,34 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   }
 
   const copyBackupPassword = async (password: string) => {
+    if (backupCopyBusy) return
+    setBackupCopyBusy(true)
     const toastId = 'backup-password-copy'
     try {
       const copied = await window.api.clipboard.writeText(password)
       if (copied) {
+        setBackupCopied(true)
         toast.success(t('settings.randomBackupPasswordCopied'), { id: toastId })
       } else {
         toast.error(t('settings.randomBackupPasswordCopyFailed'), { id: toastId })
       }
     } catch {
       toast.error(t('settings.randomBackupPasswordCopyFailed'), { id: toastId })
+    } finally {
+      setBackupCopyBusy(false)
     }
   }
 
   const generateBackupPasswordValue = () => {
+    if (backupCopyBusy) return
+    setBackupCopied(false)
     const password = generateBackupPassword()
     setBackupPassword(password)
     setBackupPasswordConfirm('')
   }
 
   const selectBackupPasswordSource = (source: 'custom' | 'random') => {
+    if (backupCopyBusy || backupBusy) return
     if (backupPasswordSource === source) return
     patch({ backupPasswordSource: source })
     setBackupPassword('')
@@ -417,6 +453,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   }
 
   const submitBackupPassword = async () => {
+    if (backupBusy || backupCopyBusy) return
     if (backupPassword.length < 12) {
       toast.error(t('settings.backupPasswordTooShort'))
       return
@@ -517,6 +554,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
     try {
       const result = await window.api.cloudSync.generateKey()
       setGeneratedSyncKey(result.key)
+      setSyncKeyCopied(false)
       setSyncKeyInput('')
       setSyncKeyMasked(false)
       if (result.copyAvailable) toast.success(t('settings.syncKeyGenerated'))
@@ -529,16 +567,21 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
   }
 
   const copyGeneratedSyncKey = async () => {
+    if (syncBusy || !generatedSyncKey) return
+    setSyncBusy(true)
     try {
       const copied = await window.api.cloudSync.copyGeneratedKey()
       if (copied) {
         setGeneratedSyncKey(null)
         setSyncKeyInput('')
         setSyncKeyMasked(true)
+        setSyncKeyCopied(true)
         toast.success(t('settings.syncKeyCopied'))
       } else toast.error(t('settings.syncKeyCopyFailed'))
     } catch {
       toast.error(t('settings.syncKeyCopyFailed'))
+    } finally {
+      setSyncBusy(false)
     }
   }
 
@@ -640,9 +683,13 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
       orientation="vertical"
       onValueChange={(value) => setCategory(value as SettingsCategory)}
       className="settings-workspace"
+      data-category={category}
     >
       <TabsList variant="settings" aria-label={t('settings.title')}>
-        <div className="settings-navigation-title">{t('settings.title')}</div>
+        <div className="settings-navigation-title">
+          <img src={logoUrl} alt="" />
+          <span>APEX SSH</span>
+        </div>
         {categories.map(({ id, label, icon: Icon }) => (
           <TabsTrigger key={id} value={id} variant="settings">
             <Icon aria-hidden="true" />
@@ -657,384 +704,189 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
             <h1 className="settings-page-title">
               {activeCategory.label}
             </h1>
-            <p className="settings-page-description truncate">
+            <p className="settings-page-description">
               {activeCategory.description}
             </p>
           </div>
-          <span className="settings-page-meta ml-auto max-w-full shrink truncate">
-            {t('settings.autoApplied')}
-          </span>
+          <DialogClose asChild>
+            <Button variant="ghost" size="icon" className="settings-close" aria-label={t('common.close')} title={t('common.close')}>
+              <X />
+            </Button>
+          </DialogClose>
         </header>
 
-        <div className="settings-workspace-content">
-          <TabsContent value="terminal">
-            <SettingsSection title={t('settings.fontGroup')}>
-              <div className="settings-form-grid">
-                <div>
-                  <Label htmlFor="settings-font-size">{t('settings.fontSize')}</Label>
-                  <NumericSetting
-                    id="settings-font-size"
-                    value={settings.fontSize}
-                    min={12.5}
-                    max={24}
-                    step={0.5}
-                    onChange={(fontSize) => patch({ fontSize })}
-                  />
+        <ScrollArea.Root className="settings-scroll-area" type="auto">
+        <ScrollArea.Viewport className="settings-workspace-content">
+        <div className="settings-scroll-inner">
+          <TabsContent value="terminal" className="terminal-settings">
+              <SettingsSection
+                title={t('settings.fontGroup')}
+                description={t('settings.fontGroupDescription')}
+              >
+                <div className="terminal-setting-row">
+                  <div>
+                    <div className="terminal-setting-label">{t('settings.fontSize')}</div>
+                    <p className="settings-control-description">
+                      {t('settings.fontSizeDescription')}
+                    </p>
+                  </div>
+                  <div className="terminal-font-stepper">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t('common.decreaseValue')}
+                      title={t('common.decreaseValue')}
+                      disabled={settings.fontSize <= 12.5}
+                      onClick={() =>
+                        patch({
+                          fontSize: Math.max(12.5, settings.fontSize - 0.5)
+                        })
+                      }
+                    >
+                      <Minus />
+                    </Button>
+                    <output aria-label={t('settings.fontSize')}>{settings.fontSize}</output>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t('common.increaseValue')}
+                      title={t('common.increaseValue')}
+                      disabled={settings.fontSize >= 24}
+                      onClick={() =>
+                        patch({
+                          fontSize: Math.min(24, settings.fontSize + 0.5)
+                        })
+                      }
+                    >
+                      <Plus />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </SettingsSection>
-
-            <SettingsSection title={t('settings.cursorGroup')}>
-              <div className="settings-form-grid">
-                <div>
+              </SettingsSection>
+              <SettingsSection
+                title={t('settings.cursorGroup')}
+                description={t('settings.cursorGroupDescription')}
+              >
+                <div className="terminal-select-field">
                   <Label htmlFor="settings-cursor-style">{t('settings.cursorStyle')}</Label>
                   <SettingSelect
                     id="settings-cursor-style"
                     value={settings.cursorStyle}
                     options={[
                       { value: 'block', label: t('settings.cursorBlock') },
-                      { value: 'underline', label: t('settings.cursorUnderline') },
+                      {
+                        value: 'underline',
+                        label: t('settings.cursorUnderline')
+                      },
                       { value: 'bar', label: t('settings.cursorBar') }
                     ]}
                     onChange={(cursorStyle) =>
-                      patch({ cursorStyle: cursorStyle as AppSettings['cursorStyle'] })
+                      patch({
+                        cursorStyle: cursorStyle as AppSettings['cursorStyle']
+                      })
                     }
                   />
                 </div>
-                <div>
-                  <Label>{t('settings.cursorBlink')}</Label>
-                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-2.5">
-                    <span
-                      className={cn(
-                        'font-mono text-[12px]',
-                        settings.cursorBlink ? 'text-body' : 'text-faint'
-                      )}
-                    >
-                      {settings.cursorBlink ? t('common.enabled') : t('common.disabled')}
-                    </span>
-                    <SettingToggle
-                      checked={settings.cursorBlink}
-                      label={t('settings.cursorBlink')}
-                      onChange={(cursorBlink) => patch({ cursorBlink })}
-                    />
+                <div className="terminal-setting-row">
+                  <div>
+                    <div className="terminal-setting-label">{t('settings.cursorBlink')}</div>
+                    <p className="settings-control-description">
+                      {t('settings.cursorBlinkDescription')}
+                    </p>
                   </div>
+                  <SettingToggle
+                    checked={settings.cursorBlink}
+                    label={t('settings.cursorBlink')}
+                    onChange={(cursorBlink) => patch({ cursorBlink })}
+                  />
                 </div>
-              </div>
-            </SettingsSection>
-
-            <SettingsSection title={t('settings.scrollGroup')}>
-              <div className="settings-form-grid">
-                <div>
+              </SettingsSection>
+              <SettingsSection
+                title={t('settings.scrollGroup')}
+                description={t('settings.scrollGroupDescription')}
+              >
+                <div className="terminal-select-field terminal-scrollback">
                   <Label htmlFor="settings-scrollback">{t('settings.scrollback')}</Label>
-                  <NumericSetting
+                  <SettingSelect
                     id="settings-scrollback"
-                    value={settings.scrollback}
-                    min={500}
-                    max={50000}
-                    step={500}
-                    integer
-                    onChange={(scrollback) => patch({ scrollback })}
+                    value={String(settings.scrollback)}
+                    options={Array.from(new Set([1000, 5000, 10000, settings.scrollback]))
+                      .sort((a, b) => a - b)
+                      .map((value) => ({
+                        value: String(value),
+                        label: t('settings.scrollbackLines', {
+                          value: value.toLocaleString('en-US')
+                        })
+                      }))}
+                    onChange={(value) => patch({ scrollback: Number(value) })}
                   />
                 </div>
-                <div>
-                  <Label>{t('settings.scrollOnInput')}</Label>
-                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-2.5">
-                    <span
-                      className={cn(
-                        'font-mono text-[12px]',
-                        settings.scrollOnInput ? 'text-body' : 'text-faint'
-                      )}
-                    >
-                      {settings.scrollOnInput ? t('common.enabled') : t('common.disabled')}
-                    </span>
-                    <SettingToggle
-                      checked={settings.scrollOnInput}
-                      label={t('settings.scrollOnInput')}
-                      onChange={(scrollOnInput) => patch({ scrollOnInput })}
-                    />
+                <div className="terminal-setting-row">
+                  <div>
+                    <div className="terminal-setting-label">{t('settings.scrollOnInput')}</div>
+                    <p className="settings-control-description">
+                      {t('settings.scrollOnInputDescription')}
+                    </p>
                   </div>
-                </div>
-              </div>
-            </SettingsSection>
-
-            <SettingsSection title={t('settings.interactionGroup')}>
-              <div className="settings-form-grid">
-                <div>
-                  <Label>{t('settings.copyOnSelect')}</Label>
-                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-2.5">
-                    <span
-                      className={cn(
-                        'font-mono text-[12px]',
-                        settings.copyOnSelect ? 'text-body' : 'text-faint'
-                      )}
-                    >
-                      {settings.copyOnSelect ? t('common.enabled') : t('common.disabled')}
-                    </span>
-                    <SettingToggle
-                      checked={settings.copyOnSelect}
-                      label={t('settings.copyOnSelect')}
-                      onChange={(copyOnSelect) => patch({ copyOnSelect })}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label>{t('settings.confirmMultilinePaste')}</Label>
-                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-2.5">
-                    <span
-                      className={cn(
-                        'font-mono text-[12px]',
-                        settings.confirmMultilinePaste ? 'text-body' : 'text-faint'
-                      )}
-                    >
-                      {settings.confirmMultilinePaste
-                        ? t('common.enabled')
-                        : t('common.disabled')}
-                    </span>
-                    <SettingToggle
-                      checked={settings.confirmMultilinePaste}
-                      label={t('settings.confirmMultilinePaste')}
-                      onChange={(confirmMultilinePaste) => patch({ confirmMultilinePaste })}
-                    />
-                  </div>
-                </div>
-              </div>
-            </SettingsSection>
-          </TabsContent>
-
-          <TabsContent value="interface">
-            <SettingsSection title={t('settings.interface')} showTitle={false}>
-              <div className="settings-form-grid">
-                <div>
-                  <Label htmlFor="settings-language">{t('settings.language')}</Label>
-                  <SettingSelect
-                    id="settings-language"
-                    value={settings.language}
-                    options={[
-                      { value: 'system', label: t('settings.langSystem') },
-                      { value: 'zh-CN', label: t('settings.langZh') },
-                      { value: 'en-US', label: t('settings.langEn') }
-                    ]}
-                    onChange={(language) =>
-                      patch({ language: language as AppSettings['language'] })
-                    }
+                  <SettingToggle
+                    checked={settings.scrollOnInput}
+                    label={t('settings.scrollOnInput')}
+                    onChange={(scrollOnInput) => patch({ scrollOnInput })}
                   />
                 </div>
-                <div>
-                  <Label>{t('settings.showSessionInfoBar')}</Label>
-                  <div className="settings-control-surface h-9 flex items-center justify-between gap-4 px-2.5 rounded-sm border">
-                    <span
-                      className={cn(
-                        'font-mono text-[12px]',
-                        settings.showSessionInfoBar ? 'text-body' : 'text-faint'
-                      )}
-                    >
-                      {settings.showSessionInfoBar ? t('common.enabled') : t('common.disabled')}
-                    </span>
-                    <SettingToggle
-                      checked={settings.showSessionInfoBar}
-                      label={t('settings.showSessionInfoBar')}
-                      onChange={(showSessionInfoBar) => patch({ showSessionInfoBar })}
-                    />
+              </SettingsSection>
+              <SettingsSection
+                title={t('settings.interactionGroup')}
+                description={t('settings.interactionGroupDescription')}
+              >
+                <div className="terminal-setting-row">
+                  <div>
+                    <div className="terminal-setting-label">{t('settings.copyOnSelect')}</div>
+                    <p className="settings-control-description">
+                      {t('settings.copyOnSelectDescription')}
+                    </p>
                   </div>
-                </div>
-              </div>
-            </SettingsSection>
-          </TabsContent>
-
-          <TabsContent value="monitor">
-            <SettingsSection title={t('settings.monitor')} showTitle={false}>
-              <div className="settings-form-grid">
-                <div>
-                  <Label htmlFor="settings-monitor-refresh">{t('settings.monitorRefreshInterval')}</Label>
-                  <NumericSetting
-                    id="settings-monitor-refresh"
-                    value={settings.monitorRefreshInterval}
-                    min={1}
-                    max={60}
-                    step={1}
-                    integer
-                    onChange={(monitorRefreshInterval) => patch({ monitorRefreshInterval })}
+                  <SettingToggle
+                    checked={settings.copyOnSelect}
+                    label={t('settings.copyOnSelect')}
+                    onChange={(copyOnSelect) => patch({ copyOnSelect })}
                   />
                 </div>
-                <div>
-                  <Label>{t('settings.monitorEnabledByDefault')}</Label>
-                  <div className="settings-control-surface h-9 flex items-center justify-between gap-4 px-2.5 rounded-sm border">
-                    <span
-                      className={cn(
-                        'font-mono text-[12px]',
-                        settings.monitorEnabledByDefault ? 'text-body' : 'text-faint'
-                      )}
-                    >
-                      {settings.monitorEnabledByDefault ? t('common.enabled') : t('common.disabled')}
-                    </span>
-                    <SettingToggle
-                      checked={settings.monitorEnabledByDefault}
-                      label={t('settings.monitorEnabledByDefault')}
-                      onChange={(monitorEnabledByDefault) => patch({ monitorEnabledByDefault })}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label>{t('settings.monitorBackgroundEnabled')}</Label>
-                  <div className="settings-control-surface h-9 flex items-center justify-between gap-4 px-2.5 rounded-sm border">
-                    <span
-                      className={cn(
-                        'font-mono text-[12px]',
-                        settings.monitorBackgroundEnabled ? 'text-body' : 'text-faint'
-                      )}
-                    >
-                      {settings.monitorBackgroundEnabled ? t('common.enabled') : t('common.disabled')}
-                    </span>
-                    <SettingToggle
-                      checked={settings.monitorBackgroundEnabled}
-                      label={t('settings.monitorBackgroundEnabled')}
-                      onChange={(monitorBackgroundEnabled) => patch({ monitorBackgroundEnabled })}
-                    />
-                  </div>
-                </div>
-              </div>
-              <p className="mt-4 max-w-[560px] text-[11px] leading-4 text-faint font-mono">
-                {t('settings.monitorNote')}
-              </p>
-            </SettingsSection>
-          </TabsContent>
-
-          <TabsContent value="transfer">
-            <SettingsSection title={t('settings.transferSaveLocation')}>
-              <div className="flex max-w-[560px] flex-col gap-3">
-                <div>
-                  <Label>{t('settings.downloadDir')}</Label>
-                  <div className="settings-directory-row">
-                    <div
-                      className="settings-control-surface flex h-9 min-w-0 items-center rounded-sm border px-2.5 font-mono text-[11px] text-faint"
-                      title={settings.downloadDir || undefined}
-                    >
-                      <span className="truncate">
-                        {settings.downloadDir || t('settings.downloadDirAsk')}
-                      </span>
+                <div className="terminal-setting-row">
+                  <div>
+                    <div className="terminal-setting-label">
+                      {t('settings.confirmMultilinePaste')}
                     </div>
-                    <Button
-                      variant="solid"
-                      onClick={async () => {
-                        const dir = await window.api.dialog.pickDirectory()
-                        if (dir) patch({ downloadDir: dir })
-                      }}
-                    >
-                      <FolderOpen data-icon="inline-start" />
-                      {t('settings.selectDirectory')}
-                    </Button>
+                    <p className="settings-control-description">
+                      {t('settings.confirmMultilinePasteDescription')}
+                    </p>
                   </div>
-                </div>
-              </div>
-            </SettingsSection>
-
-            <SettingsSection title={t('settings.transferFileConflict')}>
-              <div className="settings-form-grid">
-                <div>
-                  <Label htmlFor="download-conflict-policy">{t('settings.downloadConflict')}</Label>
-                  <SettingSelect
-                    id="download-conflict-policy"
-                    value={settings.downloadConflictPolicy}
-                    options={[
-                      { value: 'ask', label: t('settings.conflictAsk') },
-                      { value: 'overwrite', label: t('settings.conflictOverwrite') },
-                      { value: 'skip', label: t('settings.conflictSkip') },
-                      { value: 'rename', label: t('settings.conflictRename') }
-                    ]}
-                    onChange={(downloadConflictPolicy) =>
-                      patch({
-                        downloadConflictPolicy:
-                          downloadConflictPolicy as AppSettings['downloadConflictPolicy']
-                      })
-                    }
+                  <SettingToggle
+                    checked={settings.confirmMultilinePaste}
+                    label={t('settings.confirmMultilinePaste')}
+                    onChange={(confirmMultilinePaste) => patch({ confirmMultilinePaste })}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="upload-conflict-policy">{t('settings.uploadConflict')}</Label>
-                  <SettingSelect
-                    id="upload-conflict-policy"
-                    value={settings.uploadConflictPolicy}
-                    options={[
-                      { value: 'ask', label: t('settings.conflictAsk') },
-                      { value: 'overwrite', label: t('settings.conflictOverwrite') },
-                      { value: 'skip', label: t('settings.conflictSkip') },
-                      { value: 'rename', label: t('settings.conflictRename') }
-                    ]}
-                    onChange={(uploadConflictPolicy) =>
-                      patch({
-                        uploadConflictPolicy:
-                          uploadConflictPolicy as AppSettings['uploadConflictPolicy']
-                      })
-                    }
-                  />
-                </div>
-              </div>
-            </SettingsSection>
+              </SettingsSection>
+            </TabsContent>
 
-            <SettingsSection title={t('settings.transferPanelSettings')}>
-              <div className="settings-form-grid">
-                <div>
-                  <Label htmlFor="sftp-panel-mode">{t('settings.panelMode')}</Label>
-                  <SettingSelect
-                    id="sftp-panel-mode"
-                    value={settings.sftpPanelMode}
-                    options={[
-                      { value: 'panel', label: t('settings.panelView') },
-                      { value: 'split', label: t('settings.splitView') }
-                    ]}
-                    onChange={(sftpPanelMode) =>
-                      patch({ sftpPanelMode: sftpPanelMode as AppSettings['sftpPanelMode'] })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>{t('settings.doubleClickUpload')}</Label>
-                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-3">
-                    <div className="settings-control-title">
-                      {settings.doubleClickUpload ? t('common.enabled') : t('common.disabled')}
-                    </div>
-                    <SettingToggle
-                      checked={settings.doubleClickUpload}
-                      label={t('settings.doubleClickUpload')}
-                      onChange={(doubleClickUpload) => patch({ doubleClickUpload })}
-                    />
-                  </div>
-                </div>
-              </div>
-            </SettingsSection>
+<TabsContent value="interface" className="settings-restored">
+<SettingsSection title={t('settings.appearanceGroup')} ><div className="settings-form-grid"><div className="settings-preference-field "><Label htmlFor="settings-theme">{t('settings.theme')}</Label><Select value="dark" disabled><SelectTrigger id="settings-theme" title={t('settings.darkOnly')}><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="dark">{t('settings.darkTheme')}</SelectItem></SelectGroup></SelectContent></Select></div><div className="settings-preference-field "><Label htmlFor="settings-language">{t('settings.language')}</Label><SettingSelect id="settings-language" value={String(settings.language)} options={[{ value: 'system', label: t('settings.langSystem') }, { value: 'zh-CN', label: t('settings.langZh') }, { value: 'en-US', label: t('settings.langEn') }]} onChange={(value) => patch({ language: value as AppSettings['language'] })} /></div></div></SettingsSection>
+<SettingsSection title={t('settings.layoutGroup')} ><div className="settings-preference-row"><div><div className="settings-preference-label">{t('settings.compactMode')}</div><p className="settings-control-description">{t('settings.compactModeDescription')}</p></div><SettingToggle checked={settings.compactMode} label={t('settings.compactMode')} onChange={(compactMode) => patch({ compactMode })} /></div><div className="settings-preference-row"><div><div className="settings-preference-label">{t('settings.showTabBar')}</div><p className="settings-control-description">{t('settings.showTabBarDescription')}</p></div><span title={t('settings.notAvailable')}><Switch checked={true} disabled aria-label={t('settings.showTabBar')} /></span></div><div className="settings-preference-row"><div><div className="settings-preference-label">{t('settings.interfaceAnimations')}</div><p className="settings-control-description">{t('settings.interfaceAnimationsDescription')}</p></div><SettingToggle checked={settings.interfaceAnimations} label={t('settings.interfaceAnimations')} onChange={(interfaceAnimations) => patch({ interfaceAnimations })} /></div><div className="settings-preference-row"><div><div className="settings-preference-label">{t('settings.showSessionInfoBar')}</div><p className="settings-control-description">{t('settings.showSessionInfoBarDescription')}</p></div><SettingToggle checked={settings.showSessionInfoBar} label={t('settings.showSessionInfoBar')} onChange={(showSessionInfoBar) => patch({ showSessionInfoBar })} /></div></SettingsSection>
+</TabsContent>
 
-            <SettingsSection title={t('settings.transferQueue')}>
-              <div className="settings-form-grid">
-                <div>
-                  <Label htmlFor="max-concurrent-transfers">{t('settings.concurrentTasks')}</Label>
-                  <NumericSetting
-                    id="max-concurrent-transfers"
-                    value={settings.maxConcurrentTransfers}
-                    min={1}
-                    max={4}
-                    step={1}
-                    integer
-                    onChange={(maxConcurrentTransfers) => patch({ maxConcurrentTransfers })}
-                  />
-                </div>
-                <div>
-                  <Label>{t('settings.completionNotice')}</Label>
-                  <div className="settings-control-surface flex h-9 items-center justify-between gap-4 rounded-sm border px-3">
-                    <div className="settings-control-title">
-                      {settings.notifyTransferComplete ? t('common.enabled') : t('common.disabled')}
-                    </div>
-                    <SettingToggle
-                      checked={settings.notifyTransferComplete}
-                      label={t('settings.completionNotice')}
-                      onChange={(notifyTransferComplete) => patch({ notifyTransferComplete })}
-                    />
-                  </div>
-                </div>
-              </div>
-            </SettingsSection>
-          </TabsContent>
+<TabsContent value="monitor" className="settings-restored">
+<SettingsSection title={t('settings.monitorCollection')} description={t('settings.monitorCollectionDescription')}><div className="settings-preference-field settings-field-short"><Label htmlFor="settings-monitorRefreshInterval">{t('settings.monitorRefreshInterval')}</Label><p className="settings-control-description">{t('settings.monitorRefreshIntervalDescription')}</p><SettingSelect id="settings-monitorRefreshInterval" value={String(settings.monitorRefreshInterval)} options={Array.from(new Set([1,2,5,10,settings.monitorRefreshInterval])).sort((a,b)=>a-b).map(value=>({value:String(value), label:t('settings.intervalSeconds',{value})}))} onChange={(value) => patch({ monitorRefreshInterval: Number(value) })} /></div><div className="settings-preference-row"><div><div className="settings-preference-label">{t('settings.monitorBackgroundEnabled')}</div><p className="settings-control-description">{t('settings.monitorBackgroundEnabledDescription')}</p></div><SettingToggle checked={settings.monitorBackgroundEnabled} label={t('settings.monitorBackgroundEnabled')} onChange={(monitorBackgroundEnabled) => patch({ monitorBackgroundEnabled })} /></div></SettingsSection>
+<SettingsSection title={t('settings.monitorDisplay')} description={t('settings.monitorDisplayDescription')}><div className="settings-preference-row"><div><div className="settings-preference-label">{t('settings.monitorEnabledByDefault')}</div><p className="settings-control-description">{t('settings.monitorEnabledByDefaultDescription')}</p></div><SettingToggle checked={settings.monitorEnabledByDefault} label={t('settings.monitorEnabledByDefault')} onChange={(monitorEnabledByDefault) => patch({ monitorEnabledByDefault })} /></div></SettingsSection>
+</TabsContent>
 
-          <TabsContent value="backup">
+<TabsContent value="transfer" className="settings-restored">
+<SettingsSection title={t('settings.transferSaveLocation')} description={t('settings.transferFileDescription')}><div className="settings-preference-field"><Label>{t('settings.downloadDir')}</Label><p className="settings-control-description">{t('settings.downloadDirDescription')}</p><div className="settings-directory-row"><Input aria-label={t('settings.downloadDir')} readOnly value={settings.downloadDir} placeholder={t('settings.downloadDirAsk')} title={settings.downloadDir} disabled={settings.downloadDirectoryMode === 'ask'} /><Button variant="secondary" disabled={settings.downloadDirectoryMode === 'ask'} onClick={async () => { const dir = await window.api.dialog.pickDirectory(); if(dir) patch({ downloadDir: dir, downloadDirectoryMode: 'fixed' }) }}><FolderOpen data-icon="inline-start" />{t('settings.selectDirectory')}</Button></div><div className="settings-directory-options"><label><Checkbox checked={settings.downloadDirectoryMode === 'last'} onCheckedChange={(checked) => patch({downloadDirectoryMode: checked ? 'last' : 'fixed'})} />{t('settings.useLastDownloadDirectory')}</label><label><Checkbox checked={settings.downloadDirectoryMode === 'ask'} onCheckedChange={(checked) => patch({downloadDirectoryMode: checked ? 'ask' : 'fixed'})} />{t('settings.askDownloadDirectory')}</label></div></div><div className="settings-form-grid"><div className="settings-preference-field "><Label htmlFor="settings-downloadConflict">{t('settings.downloadConflict')}</Label><SettingSelect id="settings-downloadConflict" value={String(settings.downloadConflictPolicy)} options={[{value:'ask',label:t('settings.conflictAsk')},{value:'overwrite',label:t('settings.conflictOverwrite')},{value:'skip',label:t('settings.conflictSkip')},{value:'rename',label:t('settings.conflictRename')}]} onChange={(value) => patch({ downloadConflictPolicy: value as AppSettings['downloadConflictPolicy'] })} /></div><div className="settings-preference-field "><Label htmlFor="settings-uploadConflict">{t('settings.uploadConflict')}</Label><SettingSelect id="settings-uploadConflict" value={String(settings.uploadConflictPolicy)} options={[{value:'ask',label:t('settings.conflictAsk')},{value:'overwrite',label:t('settings.conflictOverwrite')},{value:'skip',label:t('settings.conflictSkip')},{value:'rename',label:t('settings.conflictRename')}]} onChange={(value) => patch({ uploadConflictPolicy: value as AppSettings['uploadConflictPolicy'] })} /></div></div></SettingsSection>
+<SettingsSection title={t('settings.transferPanelSettings')} description={t('settings.transferPanelDescription')}><div className="settings-preference-field settings-field-medium"><Label htmlFor="settings-panelMode">{t('settings.panelMode')}</Label><SettingSelect id="settings-panelMode" value={String(settings.sftpPanelMode)} options={[{value:'panel',label:t('settings.panelView')},{value:'split',label:t('settings.splitView')}]} onChange={(value) => patch({ sftpPanelMode: value as AppSettings['sftpPanelMode'] })} /></div><div className="settings-preference-row"><div><div className="settings-preference-label">{t('settings.doubleClickUpload')}</div><p className="settings-control-description">{t('settings.doubleClickUploadDescription')}</p></div><SettingToggle checked={settings.doubleClickUpload} label={t('settings.doubleClickUpload')} onChange={(doubleClickUpload) => patch({ doubleClickUpload })} /></div><div className="settings-preference-row"><div><div className="settings-preference-label">{t('settings.showTransferProgress')}</div><p className="settings-control-description">{t('settings.showTransferProgressDescription')}</p></div><SettingToggle checked={settings.showTransferProgress} label={t('settings.showTransferProgress')} onChange={(showTransferProgress) => patch({ showTransferProgress })} /></div></SettingsSection>
+<SettingsSection title={t('settings.transferQueue')} description={t('settings.transferQueueDescription')}><div className="settings-preference-field settings-field-short"><Label htmlFor="settings-concurrentTasks">{t('settings.concurrentTasks')}</Label><p className="settings-control-description">{t('settings.concurrentTasksDescription')}</p><SettingSelect id="settings-concurrentTasks" value={String(settings.maxConcurrentTransfers)} options={[1,2,3,4].map(value=>({value:String(value),label:String(value)}))} onChange={(value) => patch({ maxConcurrentTransfers: Number(value) })} /></div><div className="settings-preference-row"><div><div className="settings-preference-label">{t('settings.completionNotice')}</div><p className="settings-control-description">{t('settings.completionNoticeDescription')}</p></div><SettingToggle checked={settings.notifyTransferComplete} label={t('settings.completionNotice')} onChange={(notifyTransferComplete) => patch({ notifyTransferComplete })} /></div></SettingsSection>
+</TabsContent>
+
+          <TabsContent value="backup" className="settings-backup">
             <SettingsSection title={t('settings.hostBackup')} showTitle={false}>
               <div className="flex max-w-[560px] flex-col gap-3">
                 <div className="settings-section-heading">
@@ -1072,11 +924,11 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </div>
                 )}
                 <div className="settings-backup-actions grid gap-3">
-                  <Button variant="solid" className="w-full" onClick={() => void exportBackup()}>
+                  <Button variant="secondary" className="w-full" onClick={() => void exportBackup()}>
                     <Download data-icon="inline-start" />
                     {t('settings.exportBackup')}
                   </Button>
-                  <Button variant="solid" className="w-full" onClick={() => void importBackup()}>
+                  <Button variant="secondary" className="w-full" onClick={() => void importBackup()}>
                     <Upload data-icon="inline-start" />
                     {t('settings.importBackup')}
                   </Button>
@@ -1090,7 +942,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                 if (!open && !backupBusy) void closePasswordDialog()
               }}
             >
-              <DialogContent>
+              <DialogContent className="settings-backup-dialog" onEscapeKeyDown={(event) => { if(backupBusy) event.preventDefault() }} onInteractOutside={(event) => event.preventDefault()}>
                 <DialogHeader>
                   <DialogTitle>
                     {backupPasswordMode === 'export'
@@ -1147,7 +999,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                           title={t('settings.copyRandomBackupPassword')}
                           onClick={() => void copyBackupPassword(backupPassword)}
                         >
-                          <Copy data-icon="inline-start" />
+                          {backupCopied ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
                         </Button>
                         <Button
                           type="button"
@@ -1265,7 +1117,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
             </Dialog>
           </TabsContent>
 
-          <TabsContent value="sync">
+          <TabsContent value="sync" className="sync-settings">
             <SettingsSection
               title={t('settings.syncConnection')}
               description={t('settings.syncConnectionHint')}
@@ -1342,7 +1194,7 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                     disabled={syncBusy}
                     onClick={() => void testSyncConnection()}
                   >
-                    <PlugZap data-icon="inline-start" />
+                    <Unplug data-icon="inline-start" />
                     {t('settings.syncTestConnection')}
                   </Button>
                 </div>
@@ -1354,17 +1206,11 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
               description={t('settings.syncKeyHint')}
             >
               <div className="flex max-w-[560px] flex-col gap-3">
-                <div className="settings-control-surface flex min-h-12 items-center justify-between gap-4 rounded-sm border px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="settings-control-title">
-                      {syncState?.hasKey
-                        ? t('settings.syncKeyConfigured')
-                        : t('settings.syncKeyNotConfigured')}
-                    </div>
-                  </div>
-                </div>
+                <span className="sync-key-badge">
+                  {syncState?.hasKey ? t('settings.syncKeyConfigured') : t('settings.syncKeyNotConfigured')}
+                </span>
                 <div>
-                  <Label htmlFor="sync-key-input">{t('settings.syncKeyInput')}</Label>
+                  <Label htmlFor="sync-key-input" className="sr-only">{t('settings.syncKeyInput')}</Label>
                   <div className="settings-sync-key-row">
                     <Input
                       id="sync-key-input"
@@ -1377,22 +1223,29 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                       }
                       onChange={(event) => setSyncKeyInput(event.currentTarget.value)}
                     />
-                    <Button variant="solid" disabled={syncBusy} onClick={updateSyncKey}>
-                      {generatedSyncKey ? (
-                        <Copy data-icon="inline-start" />
-                      ) : (
-                        <RefreshCw data-icon="inline-start" />
-                      )}
-                      {syncKeyActionLabel}
-                    </Button>
+                    {(syncState?.hasKey || generatedSyncKey || syncKeyMasked) && <>
+                      <Button variant="icon" size="icon" disabled={syncBusy || !generatedSyncKey}
+                        aria-label={t('settings.syncCopyKeyOnce')} title={t('settings.syncCopyKeyOnce')}
+                        onClick={() => void copyGeneratedSyncKey()}>
+                        {syncKeyCopied ? <Check /> : <Copy />}
+                      </Button>
+                      <Button variant="icon" size="icon" disabled={syncBusy}
+                        aria-label={t('settings.syncRegenerateKey')} title={t('settings.syncRegenerateKey')}
+                        onClick={() => setRegenKeyAsk(true)}><RefreshCw /></Button>
+                    </>}
                   </div>
+                  {!syncState?.hasKey && !generatedSyncKey && !syncKeyMasked && (
+                    <Button variant="ghost" className="sync-generate" disabled={syncBusy} onClick={updateSyncKey}>
+                      <KeyRound data-icon="inline-start" />{syncKeyActionLabel}
+                    </Button>
+                  )}
                 </div>
               </div>
             </SettingsSection>
 
-            <SettingsSection title={t('settings.syncSection')}>
+            <SettingsSection title={t('settings.syncSection')} description={t('settings.syncSectionHint')}>
               <div className="flex max-w-[560px] flex-col gap-3">
-                <div className="settings-control-surface flex min-h-12 items-center justify-between gap-4 rounded-sm border px-3 py-2">
+                <div className="sync-enable-row">
                   <div className="min-w-0">
                     <div className="settings-control-title">
                       {t('settings.syncEnable')}
@@ -1403,37 +1256,48 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
                   </div>
                   <SettingToggle
                     checked={syncState?.enabled ?? false}
-                    emphasized
                     label={t('settings.syncEnable')}
                     onChange={(enabled) => void toggleSyncEnabled(enabled)}
                   />
                 </div>
-                <div className="font-mono text-[11px] leading-4 text-dim break-all">
-                  {syncStatusText()}
-                </div>
-                {syncState?.lastResult && (
-                  <div className="font-mono text-[10px] leading-4 text-ghost">
-                    {t('settings.syncResult', {
-                      pushed: syncState.lastResult.pushed,
-                      pulled: syncState.lastResult.pulled,
-                      deleted: syncState.lastResult.deleted,
-                      skipped: syncState.lastResult.skipped,
-                      conflicts: syncState.lastResult.conflicts
-                    })}
+                <div className="sync-status-region">
+                  <h3>{t('settings.syncStatusHeading')}</h3>
+                  <div className="sync-status-card" role="status" title={syncStatusText()}>
+                    <strong><RefreshCw aria-hidden="true" className={cn(syncState?.syncing && 'settings-status-spinning')} />
+                      {t(syncState?.syncing ? 'settings.syncSyncing' : syncState?.errorCode ? 'settings.syncStatusError' : !syncState?.enabled ? 'settings.syncDisabled' : syncState?.lastSyncAt ? 'settings.syncStatusNormal' : 'settings.syncNever')}
+                    </strong>
+                    <div className="sync-status-time"><small>{t('settings.syncTimeLabel')}</small>
+                      <span>{syncState?.lastSyncAt ? new Date(syncState.lastSyncAt).toLocaleString('sv-SE') : '-'}</span>
+                    </div>
+                    <div className="sync-status-grid">
+                      <span><small>{t('settings.syncHostCountLabel')}</small><b>{t('settings.syncHostCount', { count: syncState?.syncedHostCount ?? 0 })}</b></span>
+                      <span><small>{t('settings.syncCloudLabel')}</small><b>{t(syncState?.errorCode ? 'settings.syncCloudError' : syncState?.lastSyncAt ? 'settings.syncCloudNormal' : 'settings.syncNever')}</b></span>
+                    </div>
                   </div>
-                )}
+                </div>
                 <div className="settings-backup-actions grid gap-3">
                   <Button
                     variant="solid"
                     className="w-full"
                     disabled={syncBusy || !syncState?.enabled || syncState.syncing}
-                    onClick={() => void runSyncAction(window.api.cloudSync.syncNow)}
+                    onClick={() => void runSyncAction(async () => {
+                      const before = await window.api.cloudSync.getState()
+                      if (!before.enabled || before.syncing) return null
+                      const error = await window.api.cloudSync.syncNow()
+                      if (!error) {
+                        const after = await window.api.cloudSync.getState()
+                        if ((after.lastSyncAt ?? 0) > (before.lastSyncAt ?? 0)) {
+                          toast.success(t('settings.syncCompleted'))
+                        }
+                      }
+                      return error
+                    })}
                   >
                     <RefreshCw data-icon="inline-start" />
                     {t('settings.syncNow')}
                   </Button>
                   <Button
-                    variant="danger"
+                    variant="ghost"
                     className="w-full"
                     disabled={syncBusy || !syncState?.configured}
                     onClick={() => setClearRemoteAsk(true)}
@@ -1445,120 +1309,30 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
               </div>
             </SettingsSection>
 
-            {/* 重置密钥确认：云端密文将被清空重写 */}
-            <Dialog open={regenKeyAsk} onOpenChange={setRegenKeyAsk}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{t('settings.syncRegenerateConfirmTitle')}</DialogTitle>
-                </DialogHeader>
-                <DialogBody>
-                  <p className="font-mono text-[11px] text-dim leading-relaxed">
-                    {t('settings.syncRegenerateConfirmDesc')}
-                  </p>
-                </DialogBody>
-                <DialogFooter className="justify-end">
-                  <Button variant="ghost" size="sm" onClick={() => setRegenKeyAsk(false)}>
-                    {t('common.cancel')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    className="settings-danger-solid"
-                    disabled={syncBusy}
-                    onClick={() => void generateSyncKey()}
-                  >
-                    {t('settings.syncRegenerateConfirm')}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            {/* 清空云端数据确认 */}
-            <Dialog open={clearRemoteAsk} onOpenChange={setClearRemoteAsk}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{t('settings.syncClearConfirmTitle')}</DialogTitle>
-                </DialogHeader>
-                <DialogBody>
-                  <p className="font-mono text-[11px] text-dim leading-relaxed">
-                    {t('settings.syncClearConfirmDesc')}
-                  </p>
-                </DialogBody>
-                <DialogFooter className="justify-end">
-                  <Button variant="ghost" size="sm" onClick={() => setClearRemoteAsk(false)}>
-                    {t('common.cancel')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    disabled={syncBusy}
-                    onClick={() => void clearRemote()}
-                  >
-                    {t('settings.syncClearConfirm')}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <SettingsConfirmation open={regenKeyAsk} onOpenChange={setRegenKeyAsk}
+              title={t('settings.syncRegenerateConfirmTitle')} description={t('settings.syncRegenerateConfirmDesc')}
+              action={t('settings.syncRegenerateConfirm')} busy={syncBusy} onConfirm={() => void generateSyncKey()} />
+            <SettingsConfirmation open={clearRemoteAsk} onOpenChange={setClearRemoteAsk}
+              title={t('settings.syncClearConfirmTitle')} description={t('settings.syncClearConfirmDesc')}
+              action={t('settings.syncClearConfirm')} busy={syncBusy} onConfirm={() => void clearRemote()} />
           </TabsContent>
 
-          <TabsContent value="about">
-            <SettingsSection title={t('settings.appInfo')}>
-              <div className="settings-control-surface flex min-h-14 max-w-[560px] items-center gap-3 rounded-sm border px-3">
-                <img src={logoUrl} alt="" className="size-7 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="font-mono text-[12px] text-fg">Apex SSH</div>
-                  <div className="settings-control-description truncate">
-                    {t('settings.aboutDesc')}
-                  </div>
-                </div>
-                <div className="font-mono text-[10px] text-faint shrink-0">
-                  {t('settings.version')} {updateStatus?.currentVersion ?? '…'}
-                </div>
-              </div>
+          <TabsContent value="about" className="settings-restored settings-about">
+            <SettingsSection title={t('settings.appInfo')} showTitle={false}>
+              <div className="settings-about-brand"><img src={logoUrl} alt="" /><div><h2>APEX SSH</h2><p className="settings-control-description">{t('settings.version')} v{updateStatus?.currentVersion ?? '...'}</p></div></div>
             </SettingsSection>
-
-            <SettingsSection title={t('settings.update')} description={updateStatusText()}>
-              {updateStatus?.state === 'downloading' && (
-                <div className="h-1 w-full overflow-hidden rounded-full bg-elevated">
-                  <div
-                    className="h-full bg-white/25 transition-[width]"
-                    style={{ width: `${updateStatus.progress ?? 0}%` }}
-                  />
-                </div>
-              )}
-              {updateStatus?.supported && updateStatus.state !== 'installing' && (
-                <div
-                  className="settings-update-actions grid w-full gap-2"
-                  data-count={updateStatus.state === 'downloaded' ? 2 : 1}
-                >
-                  {updateStatus.state !== 'checking' && updateStatus.state !== 'downloading' && (
-                    <Button
-                      variant={updateStatus.state === 'downloaded' ? 'ghost' : 'solid'}
-                      className="h-9 w-full"
-                      onClick={() => void window.api.updater.check()}
-                    >
-                      <RefreshCw data-icon="inline-start" />
-                      {updateStatus.state === 'error'
-                        ? t('settings.updateRetry')
-                        : t('settings.checkUpdate')}
-                    </Button>
-                  )}
-                  {updateStatus.state === 'downloaded' && (
-                    <Button
-                      className="h-9 w-full"
-                      variant="solid"
-                      onClick={() => {
-                        // 存在活动 SSH 会话时必须先确认会断开，再允许立即安装
-                        if (activeSessions > 0) setRestartAsk(true)
-                        else void window.api.updater.restartAndInstall()
-                      }}
-                    >
-                      <Rocket data-icon="inline-start" />
-                      {t('settings.restartNow')}
-                    </Button>
-                  )}
-                </div>
-              )}
+            <SettingsSection title={t('settings.update')} showTitle={false}>
+              {updateStatus && updateStatus.state !== 'idle' && <p className="settings-update-status" role="status">{updateStatusText()}</p>}
+              {updateStatus?.state === 'downloading' && <div className="settings-update-progress" role="progressbar" aria-label={t('settings.updateDownloadingButton')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, updateStatus.progress ?? 0))}><div style={{width: `${Math.min(100, Math.max(0, updateStatus.progress ?? 0))}%`}} /></div>}
+              <div className="settings-update-actions">
+                <Button variant="secondary" disabled={!updateStatus?.supported || ['checking','downloading','installing'].includes(updateStatus.state)} onClick={() => {
+                  if(updateStatus?.state === 'downloaded') {
+                    if(activeSessions > 0) setRestartAsk(true)
+                    else void window.api.updater.restartAndInstall()
+                  } else void window.api.updater.check()
+                }}><RefreshCw data-icon="inline-start" className={cn(['checking','downloading'].includes(updateStatus?.state ?? '') && 'settings-status-spinning')} />{t(updateStatus?.state === 'downloaded' ? 'settings.restartNow' : updateStatus?.state === 'checking' ? 'settings.updateCheckingButton' : updateStatus?.state === 'downloading' ? 'settings.updateDownloadingButton' : updateStatus?.state === 'error' ? 'settings.updateRetry' : 'settings.checkUpdate')}</Button>
+                <Button variant="secondary" onClick={() => void window.api.updater.openProject()}><img src={githubUrl} alt="" width={14} height={14} />GitHub</Button>
+              </div>
             </SettingsSection>
 
             {/* 立即重启更新确认：活动 SSH 会话将断开 */}
@@ -1591,6 +1365,11 @@ export function SettingsWorkspace({ onHostsImported, activeSessions }: SettingsW
             </Dialog>
           </TabsContent>
         </div>
+        </ScrollArea.Viewport>
+        <ScrollArea.Scrollbar orientation="vertical" className="settings-scrollbar">
+          <ScrollArea.Thumb className="settings-scrollbar-thumb" />
+        </ScrollArea.Scrollbar>
+        </ScrollArea.Root>
       </div>
     </Tabs>
   )

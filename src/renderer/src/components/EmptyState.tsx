@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from '
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { ChevronRight, PanelsTopLeft, Plus, SquareTerminal, Trash2, X } from 'lucide-react'
+import { ChevronRight, Grid2X2, Plus, SquareTerminal, Trash2, X } from 'lucide-react'
 import type { HostConfig, RecentEntry } from '@shared/types'
 import logoUrl from '@/assets/logo.svg'
 import type { HostAction } from '@/components/ConnectionHub'
@@ -15,10 +15,12 @@ import {
   ContextMenuTrigger
 } from '@/components/ui/context-menu'
 import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export interface ConnectionAddress {
   host: string
   username: string
+  protocol?: 'ssh' | 'sftp'
 }
 
 interface DescriptionTooltipState {
@@ -32,7 +34,7 @@ interface EmptyStateProps {
   sessionHostIds: Set<string>
   /** 顶部标签栏没有连接管理入口时，在启动器标题行补充显示。 */
   showConnectionsAction: boolean
-  onConnect: (host: HostConfig) => void
+  onConnect: (host: HostConfig, protocol?: 'ssh' | 'sftp') => void
   onHostAction: (host: HostConfig, action: HostAction) => void
   onNewConnection: (address?: ConnectionAddress) => void
   onOpenConnections: () => void
@@ -60,6 +62,7 @@ export function EmptyState({
   const { t } = useTranslation()
   const [recents, setRecents] = useState<RecentEntry[]>([])
   const [query, setQuery] = useState('')
+  const [protocol, setProtocol] = useState<'ssh' | 'sftp'>('ssh')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyFilter, setHistoryFilter] = useState('')
   const [descriptionTooltip, setDescriptionTooltip] = useState<DescriptionTooltipState | null>(null)
@@ -89,7 +92,6 @@ export function EmptyState({
           value?.toLowerCase().includes(keyword)
         )
       )
-      .slice(0, 4)
   }, [hosts, query, recentHosts])
 
   const filteredHistory = useMemo(() => {
@@ -122,18 +124,19 @@ export function EmptyState({
       toast.error(t('empty.hostDeleted'))
       return
     }
-    onConnect(host)
+    onConnect(host, protocol)
   }
 
   const submitQuery = () => {
     if (launcherHosts[0]) {
-      onConnect(launcherHosts[0])
+      onConnect(launcherHosts[0], protocol)
       return
     }
     const value = query.trim()
     if (!value) return
     const separator = value.lastIndexOf('@')
     onNewConnection({
+      protocol,
       username: separator > 0 ? value.slice(0, separator) : '',
       host: separator > 0 ? value.slice(separator + 1) : value
     })
@@ -148,7 +151,7 @@ export function EmptyState({
   const runHostAction = (host: HostConfig, action: HostAction, closeHistory = false) => {
     hideDescription()
     if (closeHistory) setHistoryOpen(false)
-    if (action === 'connect') onConnect(host)
+    if (action === 'connect') onConnect(host, protocol)
     else onHostAction(host, action)
   }
 
@@ -202,21 +205,21 @@ export function EmptyState({
   }
 
   return (
-    <div className="flex-1 min-h-0 flex items-center justify-center bg-ink px-6 py-8">
-      <div className="w-[500px] max-w-full flex flex-col gap-[18px]">
-        <div className="flex items-center gap-2.5 min-h-7">
-          <img src={logoUrl} alt="" className="size-[25px]" />
-          <div className="font-mono text-[14px] leading-5 font-medium tracking-[0.14em] text-body">
-            APEX <span className="font-sans text-[11px] leading-4 tracking-normal text-faint">SSH</span>
+    <div className="connection-launcher">
+      <div className="launcher-card">
+        <div className="launcher-brand-row">
+          <div className="launcher-brand">
+            <img src={logoUrl} alt="" />
+            <strong>APEX</strong><span>SSH</span>
           </div>
-          <div className="ml-auto flex items-center gap-0.5">
+          <div className="ml-auto flex items-center gap-1">
             <button
               className="launcher-tool"
               title={t('sidebar.newConnection')}
               aria-label={t('sidebar.newConnection')}
               onClick={() => onNewConnection()}
             >
-              <Plus className="size-3.5" />
+              <Plus className="size-[15px]" />
             </button>
             {showConnectionsAction && (
               <button
@@ -225,47 +228,42 @@ export function EmptyState({
                 aria-label={t('connections.title')}
                 onClick={onOpenConnections}
               >
-                <PanelsTopLeft className="size-3.5" />
+                <Grid2X2 className="size-[15px]" />
               </button>
             )}
           </div>
         </div>
 
-        <div className="h-12 px-3.5 flex items-center gap-2.5 border border-white/[0.13] rounded-sm bg-panel focus-within:border-white/30 transition-colors">
-          <span className="font-mono text-[12px] leading-4 text-dim shrink-0">ssh</span>
-          <span className="font-mono text-[12px] leading-4 text-ghost shrink-0">›</span>
+        <form className="launcher-search" onSubmit={(event) => { event.preventDefault(); submitQuery() }}>
+          <Select value={protocol} onValueChange={(value) => setProtocol(value as 'ssh' | 'sftp')}>
+            <SelectTrigger className="launcher-protocol" aria-label={t('empty.protocol')}><SelectValue /></SelectTrigger>
+            <SelectContent><SelectGroup><SelectItem value="ssh">ssh</SelectItem><SelectItem value="sftp">sftp</SelectItem></SelectGroup></SelectContent>
+          </Select>
           <input
-            className="flex-1 min-w-0 bg-transparent border-0 outline-none font-mono text-[14px] leading-5 text-body placeholder:text-ghost"
+            aria-label={t('empty.quickPlaceholder')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => event.key === 'Enter' && submitQuery()}
             placeholder={t('empty.quickPlaceholder')}
             autoFocus
           />
-          <button
-            className="font-sans text-[11px] leading-4 text-ghost hover:text-dim transition-colors cursor-pointer shrink-0"
-            onClick={submitQuery}
-          >
-            {t('empty.confirm')}
-          </button>
-        </div>
+        </form>
 
-        <div>
-          <div className="h-5 flex items-center">
-            <span className="font-sans text-[10px] leading-4 uppercase tracking-[0.08em] text-ghost">
-              {query ? t('connections.title') : t('empty.recent')}
+        <div className="launcher-suggestions">
+          {(!query.trim() || launcherHosts.length > 0) && <div className="launcher-heading">
+            <span>
+              {query.trim() ? t('empty.matches') : t('empty.recent')}
             </span>
-            {!query && recents.length > 3 && (
+            {query.trim() ? <span>{t('empty.matchCount', { count: launcherHosts.length })}</span> : (
               <button
-                className="ml-auto font-sans text-[11px] leading-4 text-ghost hover:text-dim transition-colors cursor-pointer"
+                type="button"
                 onClick={() => setHistoryOpen(true)}
               >
                 {t('empty.more')}
               </button>
             )}
-          </div>
-          <div className="border-t border-line">
-            {launcherHosts.map((host) => (
+          </div>}
+          <div className="launcher-results">
+            {launcherHosts.slice(0, 3).map((host) => (
               <ContextMenu key={host.id}>
                 <ContextMenuTrigger asChild>
                   <button
@@ -278,32 +276,27 @@ export function EmptyState({
                     onContextMenu={hideDescription}
                     onClick={() => {
                       hideDescription()
-                      onConnect(host)
+                      onConnect(host, protocol)
                     }}
                   >
                     <span className={`dot ${sessionHostIds.has(host.id) ? 'on' : ''}`} />
-                    <span className="min-w-0 flex-1 text-left">
-                      <span className="block truncate font-mono text-[12px] leading-4 text-body">
+                    <span className="launcher-host-label">
+                      <span className="block truncate">
                         {host.label || `${host.username}@${host.host}`}
                       </span>
-                      {host.description && (
-                        <span className="block mt-0.5 truncate font-sans text-[11px] leading-4 text-faint">
-                          {host.description}
-                        </span>
-                      )}
                     </span>
-                    <span className="max-w-[48%] truncate font-mono text-[11px] leading-4 text-faint">
+                    <span className="launcher-host-address">
                       {host.username}@{host.host}
                     </span>
-                    <ChevronRight className="size-3 text-ghost shrink-0" />
+                    <ChevronRight className="size-[13px] shrink-0" />
                   </button>
                 </ContextMenuTrigger>
                 {renderRecentMenu(host, host.id)}
               </ContextMenu>
             ))}
             {launcherHosts.length === 0 && (
-              <div className="h-[46px] flex items-center font-sans text-[11px] leading-4 text-ghost">
-                {query ? t('empty.directHint') : t('empty.noRecent')}
+              <div className="launcher-hint">
+                {query.trim() ? t('empty.directHint') : t('empty.noRecent')}
               </div>
             )}
           </div>

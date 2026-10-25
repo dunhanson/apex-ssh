@@ -10,6 +10,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   confirmMultilinePaste: true,
   language: 'system',
   showSessionInfoBar: true,
+  compactMode: false,
+  interfaceAnimations: true,
+  showTransferProgress: true,
+  downloadDirectoryMode: 'ask',
   downloadDir: '',
   downloadConflictPolicy: 'ask',
   uploadConflictPolicy: 'ask',
@@ -103,6 +107,12 @@ export function normalizeSettings(candidate: Partial<AppSettings>): AppSettings 
         ? candidate.confirmMultilinePaste
         : DEFAULT_SETTINGS.confirmMultilinePaste,
     language,
+    compactMode: typeof candidate.compactMode === 'boolean' ? candidate.compactMode : false,
+    interfaceAnimations: typeof candidate.interfaceAnimations === 'boolean' ? candidate.interfaceAnimations : true,
+    showTransferProgress: typeof candidate.showTransferProgress === 'boolean' ? candidate.showTransferProgress : true,
+    downloadDirectoryMode: ['fixed', 'last', 'ask'].includes(candidate.downloadDirectoryMode ?? '')
+      ? candidate.downloadDirectoryMode!
+      : candidate.downloadDir ? 'fixed' : 'ask',
     showSessionInfoBar:
       typeof candidate.showSessionInfoBar === 'boolean'
         ? candidate.showSessionInfoBar

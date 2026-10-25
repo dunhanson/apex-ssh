@@ -181,7 +181,7 @@ export function useBackgroundMonitor(
     if (!autoStartRef.current) return
     for (const sessionId of connectedSessions) {
       const rt = runtimesRef.current[sessionId]
-      if (!rt) startRuntime(sessionId)
+      if (!rt) startRuntime(sessionId).then(() => ensureInterval(sessionId))
       else if (!rt.intervalId && !rt.paused) ensureInterval(sessionId)
     }
   }, [connectedSessions, startRuntime, ensureInterval])

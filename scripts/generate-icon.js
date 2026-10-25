@@ -1,6 +1,11 @@
 const fs = require('node:fs')
 const zlib = require('node:zlib')
 
+// 颜色与界面 SVG 共用源文件，避免打包资源与界面显示不同步。
+const svg = fs.readFileSync('resources/icon.svg', 'utf8')
+const backgroundColor = parseInt(svg.match(/<rect[^>]*fill="#([0-9a-f]{6})"/i)[1], 16)
+const foregroundColor = parseInt(svg.match(/<path[^>]*stroke="#([0-9a-f]{6})"/i)[1], 16)
+
 function writeUInt32BE(buf, val, offset) {
   buf[offset] = (val >>> 24) & 0xff
   buf[offset + 1] = (val >>> 16) & 0xff
@@ -139,9 +144,10 @@ function createIcon(size) {
       const alpha = foregroundAlpha + backgroundAlpha * (1 - foregroundAlpha)
       if (alpha > 0) {
         const i = (y * W + x) * 4
-        const red = (255 * foregroundAlpha + 10 * backgroundAlpha * (1 - foregroundAlpha)) / alpha
-        const green = (255 * foregroundAlpha + 10 * backgroundAlpha * (1 - foregroundAlpha)) / alpha
-        const blue = (255 * foregroundAlpha + 10 * backgroundAlpha * (1 - foregroundAlpha)) / alpha
+        const blend = shift => (((foregroundColor >>> shift) & 255) * foregroundAlpha + ((backgroundColor >>> shift) & 255) * backgroundAlpha * (1 - foregroundAlpha)) / alpha
+        const red = blend(16)
+        const green = blend(8)
+        const blue = blend(0)
         pixels[i] = Math.round(red)
         pixels[i + 1] = Math.round(green)
         pixels[i + 2] = Math.round(blue)
@@ -202,4 +208,5 @@ const pngBuffers = sizes.map((size) => ({ size, data: createIcon(size) }))
 
 fs.writeFileSync('resources/icon.png', createIcon(1024))
 fs.writeFileSync('resources/icon.ico', createIco(pngBuffers))
+fs.writeFileSync('src/renderer/src/assets/logo.svg', svg)
 console.log('Generated 1024px resources/icon.png and multi-size resources/icon.ico')

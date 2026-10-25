@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   markDeleted,
+  countSyncedHosts,
   markPulled,
   markPushed,
   planMerge,
@@ -8,6 +9,16 @@ import {
 } from './cloud-sync-merge'
 
 const local = (recordId: string, hash = 'h1') => ({ recordId, kind: 'host' as const, hash })
+it('已同步主机数排除凭证、墓碑和空状态', () => {
+  expect(countSyncedHosts({})).toBe(0)
+  const entry = { hash: 'h', remoteUpdatedAt: 1, remoteDeleted: false }
+  expect(countSyncedHosts({
+    'host:a': entry,
+    'host:b': { ...entry, remoteDeleted: true },
+    'password:a': entry,
+    'key:a': entry
+  })).toBe(1)
+})
 const remote = (recordId: string, updatedAt: number, deleted = false) => ({
   recordId,
   kind: 'host' as const,

@@ -12,8 +12,10 @@ const DialogClose = DialogPrimitive.Close
 function DialogContent({
   className,
   children,
+  showCloseButton = true,
+  onInteractOutside,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content>) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> & { showCloseButton?: boolean }) {
   const { t } = useTranslation()
   return (
     <DialogPrimitive.Portal>
@@ -25,12 +27,19 @@ function DialogContent({
             className
           )}
           {...props}
+          onInteractOutside={(event) => {
+            if (event.target instanceof Element && event.target.closest('[data-sonner-toast]')) {
+              event.preventDefault()
+              return
+            }
+            onInteractOutside?.(event)
+          }}
         >
           {children}
-          <DialogPrimitive.Close className="absolute right-3 top-3 grid size-7 place-items-center rounded-sm text-faint outline-none transition-colors hover:bg-accent hover:text-fg focus-visible:ring-[3px] focus-visible:ring-ring">
+          {showCloseButton && <DialogPrimitive.Close className="absolute right-3 top-3 grid size-7 place-items-center rounded-sm text-faint outline-none transition-colors hover:bg-accent hover:text-fg focus-visible:ring-[3px] focus-visible:ring-ring">
             <X className="size-3.5" />
             <span className="sr-only">{t('common.close')}</span>
-          </DialogPrimitive.Close>
+          </DialogPrimitive.Close>}
         </DialogPrimitive.Content>
       </DialogPrimitive.Overlay>
     </DialogPrimitive.Portal>

@@ -215,6 +215,10 @@ export interface AppSettings {
   language: 'system' | 'zh-CN' | 'en-US'
   /** 是否显示会话信息栏（全部窗口同步） */
   showSessionInfoBar: boolean
+  compactMode: boolean
+  interfaceAnimations: boolean
+  showTransferProgress: boolean
+  downloadDirectoryMode: 'fixed' | 'last' | 'ask'
   /** 默认下载目录；空串表示每次询问（记住上次选择的目录） */
   downloadDir: string
   /** 下载目标存在同名项时的默认处理策略 */
@@ -327,6 +331,8 @@ export interface CloudSyncResult {
 
 /** 主 → 渲染：云同步状态快照（状态广播与 getState 共用同一形状） */
 export interface CloudSyncState {
+  /** 上次已确认同步、尚未删除的主机数量。 */
+  syncedHostCount?: number
   /** 是否已保存完整的数据库连接参数 */
   configured: boolean
   enabled: boolean
@@ -420,6 +426,7 @@ export const IPC = {
   /** 主 → 渲染：设置变更事件，payload 为 AppSettings */
   SettingsChanged: 'settings:changed',
   UpdaterGetStatus: 'updater:get-status',
+  UpdaterOpenProject: 'updater:open-project',
   UpdaterCheck: 'updater:check',
   UpdaterRestartAndInstall: 'updater:restart-and-install',
   /** 主 → 渲染：更新状态变更事件，payload 为 UpdateStatus */
@@ -540,7 +547,7 @@ export interface RendererApi {
     /** 弹保存对话框选单文件下载位置，取消返回 null */
     pickDownloadPath: (sessionId: string, suggestedName: string) => Promise<string | null>
     /** 弹目录选择框选批量下载目录，取消返回 null */
-    pickDownloadDir: (sessionId: string) => Promise<string | null>
+    pickDownloadDir: (sessionId: string, reuseLast?: boolean) => Promise<string | null>
     pause: (taskId: string) => void
     resume: (taskId: string) => void
     cancel: (taskId: string) => void
@@ -586,6 +593,7 @@ export interface RendererApi {
     onChanged: (cb: (settings: AppSettings) => void) => () => void
   }
   updater: {
+    openProject: () => Promise<void>
     /** 当前更新状态快照；不支持的环境返回 state = unsupported */
     getStatus: () => Promise<UpdateStatus>
     /** 手动检查更新；检查/下载进行中时直接返回当前状态 */
