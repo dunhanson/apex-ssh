@@ -1,6 +1,6 @@
 {
   "name": "apex-ssh",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "description": "Apex SSH 客户端",
   "author": {
@@ -23,10 +23,11 @@
     "prestart": "install-electron",
     "start": "electron-vite preview",
     "dist": "pnpm run dist:win",
-    "dist:win": "electron-vite build && electron-builder --win nsis --x64 --publish never",
-    "dist:win:all": "electron-vite build && electron-builder --win nsis --x64 --arm64 --publish never",
-    "dist:linux": "electron-vite build && electron-builder --linux deb rpm --x64 --arm64 --publish never && node scripts/统一Linux安装包名称.mjs",
-    "icon:mac": "bash scripts/生成macOS图标.sh",
+    "dist:win": "pnpm run icon && electron-vite build && electron-builder --win nsis --x64 --publish never",
+    "dist:win:all": "pnpm run icon && electron-vite build && electron-builder --win nsis --x64 --arm64 --publish never",
+    "dist:linux": "pnpm run icon && electron-vite build && electron-builder --linux deb rpm --x64 --arm64 --publish never && node scripts/统一Linux安装包名称.mjs",
+    "icon": "node scripts/generate-icon.js",
+    "icon:mac": "pnpm run icon && bash scripts/生成macOS图标.sh",
     "dist:mac": "pnpm run icon:mac && electron-vite build && electron-builder --mac --publish never"
   },
   "build": {

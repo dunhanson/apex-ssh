@@ -199,7 +199,7 @@ body {
 .launcher-card { width: 512px; max-width: 100%; margin-top: -20px; flex-shrink: 0; }
 .launcher-brand-row, .launcher-brand { display: flex; align-items: center; }
 .launcher-brand { gap: 10px; height: 28px; font-size: 16px; line-height: 24px; }
-.launcher-brand img { width: 28px; height: 28px; filter: invert(1); }
+.launcher-brand img { width: 28px; height: 28px; }
 .launcher-brand strong { font-weight: 700; letter-spacing: .4px; }
 .launcher-brand > span { color: var(--launcher-muted); }
 .launcher-tool {
@@ -644,7 +644,6 @@ button:disabled {
   align-items: flex-start;
 }
 .settings-workspace[data-category='terminal'] { font-weight: 400; }
-.settings-workspace[data-category='terminal'] .settings-navigation-title img { filter: invert(1); }
 .terminal-settings #settings-cursor-style > svg { visibility: hidden; }
 .settings-workspace[data-category='terminal'] .settings-page-description {
   margin-top: 2px;
@@ -652,7 +651,6 @@ button:disabled {
 }
 /* 恢复稿的设置正文；终端页保留已确认的专用布局。 */
 .settings-workspace:not([data-category='terminal']) { font-weight: 400; }
-.settings-workspace:not([data-category='terminal']) .settings-navigation-title img { filter: invert(1); }
 .settings-workspace:not([data-category='terminal']) .settings-workspace-header { align-items: flex-start; }
 .settings-workspace:not([data-category='terminal']) .settings-page-description { margin-top: 2px; line-height: 16px; }
 .settings-restored .settings-section { gap: 0; }
@@ -688,7 +686,7 @@ button:disabled {
 .settings-backup .settings-control-surface + div { color: var(--color-settings-description); font-family: var(--font-sans); font-size: 12px; }
 .settings-workspace-content .settings-backup .settings-backup-actions > [data-slot='button'] { min-width: 100px; height: 38px; border-radius: 6px; font-size: 14px; }
 .settings-about-brand { display: flex; align-items: center; gap: 16px; padding: 8px 0; }
-.settings-about-brand img { width: 48px; height: 48px; filter: invert(1); }
+.settings-about-brand img { width: 48px; height: 48px; }
 .settings-about-brand h2 { font-size: 16px; font-weight: 500; line-height: 24px; }
 .settings-about-brand p { font-size: 14px; margin-top: 2px; overflow-wrap: anywhere; }
 .settings-about .settings-section + .settings-section { padding-top: 24px; }
